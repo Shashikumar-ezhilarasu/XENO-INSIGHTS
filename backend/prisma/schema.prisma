@@ -33,3 +33,30 @@ model Order {
   @@index([customerId])
   @@index([customerId, category, amount])
 }
+
+model Campaign {
+  id              String          @id @default(uuid())
+  name            String
+  promptText      String?
+  messageTemplate String?
+  channel         String          // "WHATSAPP" | "EMAIL" | "SMS" | "RCS"
+  status          String          @default("PENDING")
+  createdAt       DateTime        @default(now())
+  communications  Communication[]
+}
+
+model Communication {
+  id         String   @id @default(uuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  status     String   // "PENDING" | "SENT" | "DELIVERED" | "OPENED" | "FAILED"
+  errorMsg   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([campaignId])
+  @@index([status])
+}
