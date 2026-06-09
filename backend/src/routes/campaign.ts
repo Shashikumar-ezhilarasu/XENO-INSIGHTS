@@ -205,7 +205,7 @@ router.post('/send', async (req: Request, res: Response) => {
     // Instantly return 202 Accepted status code
     return res.status(202).json({
       success: true,
-      message: 'Campaign processing and transmission started.',
+      message: 'Campaign queued and transmission started.',
       campaignId: campaign.id,
       audienceSize: customers.length
     });

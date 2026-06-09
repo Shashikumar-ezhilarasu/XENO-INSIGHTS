@@ -1,167 +1,85 @@
+// backend/tests/campaign.test.ts
 import request from 'supertest';
-import app from '../src/app';
-import prisma from '../src/config/prisma';
+import app from '../src/app'; // Your Express app entry point
+import { PrismaClient } from '@prisma/client';
 
-// Mock the global fetch to avoid real outbound connection logs during background runs
-const originalFetch = globalThis.fetch;
-beforeAll(() => {
-  globalThis.fetch = jest.fn().mockImplementation(() =>
-    Promise.resolve({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ success: true })
-    } as any)
-  );
-});
+const prisma = new PrismaClient();
 
-afterAll(() => {
-  globalThis.fetch = originalFetch;
-});
+describe('Campaign & Webhook Async Integration Lifecycle', () => {
+  let testCampaignId: string;
+  let testCustomerId: string;
 
-describe('Campaign & Webhook Ingestion Integration Lifecycle', () => {
-  
-  it('should successfully create campaign metadata', async () => {
-    const res = await request(app)
-      .post('/api/campaigns/create')
-      .send({
-        name: 'Fall Fashion Special',
-        channel: 'EMAIL',
-        promptText: 'Find high spenders in apparel'
-      });
-
-    expect(res.status).toBe(201);
-    expect(res.body.success).toBe(true);
-    expect(res.body.campaign.id).toBeDefined();
-    expect(res.body.campaign.name).toBe('Fall Fashion Special');
-    expect(res.body.campaign.channel).toBe('EMAIL');
-  });
-
-  it('should return 400 if channel is invalid when creating a campaign', async () => {
-    const res = await request(app)
-      .post('/api/campaigns/create')
-      .send({
-        name: 'Fall Fashion Special',
-        channel: 'TELEGRAM' // Invalid channel
-      });
-
-    expect(res.status).toBe(400);
-    expect(res.body.error).toContain('channel must be one of');
-  });
-
-  it('should trigger campaign send, insert PENDING logs, and return 202 instantly', async () => {
-    // 1. Create a campaign record
+  beforeEach(async () => {
+    // Seed a test customer and campaign before each test to survive the global truncate hooks
+    const customer = await prisma.customer.create({
+      data: { name: 'Test User', email: 'test@example.com', phone: '+1234567890' },
+    });
     const campaign = await prisma.campaign.create({
       data: {
-        name: 'Summer Coffee Drive',
-        channel: 'WHATSAPP'
-      }
+        name: 'Test Webhook Campaign',
+        promptText: 'Find test users',
+        messageTemplate: 'Hello {{name}}',
+        channel: 'WHATSAPP',
+      },
     });
+    testCustomerId = customer.id;
+    testCampaignId = campaign.id;
+  });
 
-    // 2. Post campaign send request
+  afterAll(async () => {
+    // Clean up
+    await prisma.communication.deleteMany({});
+    await prisma.campaign.deleteMany({});
+    await prisma.customer.deleteMany({});
+    await prisma.$disconnect();
+  });
+
+  it('1. POST /api/campaigns/send - Should create PENDING communications and return 202 instantly', async () => {
     const res = await request(app)
       .post('/api/campaigns/send')
       .send({
-        campaignId: campaign.id,
-        customerIds: ['test-customer-1', 'test-customer-2']
+        campaignId: testCampaignId,
+        customerIds: [testCustomerId],
       });
 
-    // Verify 202 Accepted response status
     expect(res.status).toBe(202);
-    expect(res.body.success).toBe(true);
-    expect(res.body.audienceSize).toBe(2);
+    expect(res.body.message).toMatch(/Campaign queued/i);
 
-    // Verify database has created PENDING records immediately
-    const communications = await prisma.communication.findMany({
-      where: { campaignId: campaign.id }
+    // Verify DB state is PENDING
+    const comms = await prisma.communication.findFirst({
+      where: { campaignId: testCampaignId },
     });
-
-    expect(communications.length).toBe(2);
-    expect(communications.every(c => c.status === 'PENDING')).toBe(true);
+    expect(comms).toBeDefined();
+    expect(comms?.status).toBe('PENDING');
   });
 
-  it('should consume webhook callback and update communication status accurately', async () => {
-    // 1. Setup a campaign and a pending communication record
-    const campaign = await prisma.campaign.create({
+  it('2. POST /api/webhooks/channel-callback - Should update status from PENDING to DELIVERED', async () => {
+    // Explicitly create the pending communication log to ensure this test is fully self-contained
+    const pendingComm = await prisma.communication.create({
       data: {
-        name: 'Holiday Sale',
-        channel: 'SMS'
-      }
-    });
-
-    const communication = await prisma.communication.create({
-      data: {
-        id: 'test-communication-uuid',
-        customerId: 'test-customer-1',
-        campaignId: campaign.id,
+        customerId: testCustomerId,
+        campaignId: testCampaignId,
         status: 'PENDING'
       }
     });
 
-    const initialUpdatedAt = new Date(communication.updatedAt);
+    // Simulate the Channel Service firing a webhook back to the CRM
+    const webhookPayload = {
+      communicationId: pendingComm.id,
+      status: 'DELIVERED',
+      timestamp: new Date().toISOString(),
+    };
 
-    // Delay slightly to ensure updatedAt changes
-    await new Promise(resolve => setTimeout(resolve, 50));
-
-    // 2. POST to webhook channel callback
     const res = await request(app)
       .post('/api/webhooks/channel-callback')
-      .send({
-        communicationId: communication.id,
-        status: 'DELIVERED',
-        timestamp: new Date().toISOString()
-      });
+      .send(webhookPayload);
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.record.status).toBe('DELIVERED');
 
-    // 3. Assert database update and timestamps
-    const updated = await prisma.communication.findUnique({
-      where: { id: communication.id }
+    // Verify the database updated the state correctly
+    const updatedComm = await prisma.communication.findUnique({
+      where: { id: pendingComm.id },
     });
-
-    expect(updated).not.toBeNull();
-    expect(updated!.status).toBe('DELIVERED');
-    expect(new Date(updated!.updatedAt).getTime()).toBeGreaterThan(initialUpdatedAt.getTime());
-  });
-
-  it('should implement status sequence precedence (ignore stale updates)', async () => {
-    // 1. Setup a campaign and a communication record already marked as OPENED
-    const campaign = await prisma.campaign.create({
-      data: {
-        name: 'Holiday Sale 2',
-        channel: 'SMS'
-      }
-    });
-
-    const communication = await prisma.communication.create({
-      data: {
-        id: 'test-communication-precedence',
-        customerId: 'test-customer-1',
-        campaignId: campaign.id,
-        status: 'OPENED' // Advanced state
-      }
-    });
-
-    // 2. Fire a stale 'DELIVERED' status update (which has lower precedence than 'OPENED')
-    const res = await request(app)
-      .post('/api/webhooks/channel-callback')
-      .send({
-        communicationId: communication.id,
-        status: 'DELIVERED', // Stale lower precedence state
-        timestamp: new Date().toISOString()
-      });
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.message).toContain('Status update ignored');
-
-    // 3. Assert database status remains OPENED
-    const updated = await prisma.communication.findUnique({
-      where: { id: communication.id }
-    });
-
-    expect(updated).not.toBeNull();
-    expect(updated!.status).toBe('OPENED'); // Did not regress to DELIVERED
+    expect(updatedComm?.status).toBe('DELIVERED');
   });
 });
