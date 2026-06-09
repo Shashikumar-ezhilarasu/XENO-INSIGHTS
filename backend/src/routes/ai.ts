@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import prisma from '../config/prisma';
+import { validateSqlQuery, validatePrismaWhere } from '../utils/queryValidator';
+import { validateAiSegment, aiSegmentRateLimiter } from '../middleware/security';
 
 const router = Router();
 
@@ -8,7 +10,7 @@ const router = Router();
 const apiKey = process.env.GEMINI_API_KEY || '';
 const genAI = new GoogleGenerativeAI(apiKey);
 
-// System instruction specifying the schema and output rules
+// Schema-Informed system instruction specifying database schema and categories
 const SYSTEM_INSTRUCTION = `
 You are a Senior Systems and Database Engineer translating natural language prompts into queries targeting a PostgreSQL database of customers and their orders.
 
@@ -27,29 +29,30 @@ Database Schema Details:
    - customerId: string (Foreign Key referencing Customer.id)
    - amount: float (amount spent in this order)
    - itemCount: integer (number of items bought in this order)
-   - category: string (categories: 'Coffee', 'Bakery', 'Apparel', 'Beauty', 'Accessories')
+   - category: string (categories cased exactly: 'Coffee', 'Bakery', 'Apparel', 'Beauty', 'Accessories')
    - createdAt: DateTime
 
 Instructions:
-- Analyze the user prompt to determine if it can be represented by a simple Prisma 'where' clause on the Customer model (e.g., matching basic customer properties or totalSpends).
-- If it requires grouping, aggregations, or conditional summing on orders (e.g., "spent more than $100 in Coffee" which requires filtering orders by category and summing them), use queryType = "SQL" and write a valid raw SQL query.
-- For SQL queries, make sure they are valid PostgreSQL and query all columns from the Customer table (use alias c.* or write out fields) so Prisma can map the result back to Customer objects. Example query for "spent > 100 in Coffee":
-  SELECT c.* FROM "Customer" c JOIN "Order" o ON c."id" = o."customerId" WHERE o."category" = 'Coffee' GROUP BY c."id" HAVING SUM(o."amount") > 100
-- For PRISMA queries, the prismaWhereJson must be a valid JSON representation of a Prisma CustomerWhereInput object. Example for "spent more than $100 total":
-  {"totalSpends": {"gt": 100}}
-- Return only valid JSON conforming to the requested response schema.
+1. Return a JSON object containing three fields: 'explanation', 'prismaQuery', and 'fallbackSql'.
+2. 'prismaQuery' must be a structured Prisma findMany arguments object, containing a 'where' clause. For example:
+   {"where": {"totalSpends": {"gt": 50}}}
+   For queries requiring complex order-level constraints (like "spent over $50 on Coffee in the last 30 days"), you can use relation filters:
+   {"where": {"orders": {"some": {"category": "Coffee", "amount": {"gt": 50}, "createdAt": {"gte": "2026-05-10T22:22:09Z"}}}}}
+   If the query cannot be written in Prisma, return an empty object {}.
+3. 'fallbackSql' must be a valid, read-only PostgreSQL SELECT query targeting the Customer table (use alias c.* to pull Customer records). For example:
+   SELECT c.* FROM "Customer" c JOIN "Order" o ON c."id" = o."customerId" WHERE o."category" = 'Coffee' AND o."amount" > 50 GROUP BY c."id"
+   The fallbackSql is used as a fallback if the Prisma query fails or is empty.
+4. Do NOT include any destructive or modifying SQL queries. Only read-only SELECT operations.
+5. All categories are case-sensitive (e.g. 'Coffee', 'Apparel', 'Bakery', 'Beauty', 'Accessories').
 `;
 
 /**
  * POST /api/ai/segment
  * Accepts promptText and parses it into a customer segment query.
+ * Applied rate-limiting (5req/min) and body validation.
  */
-router.post('/segment', async (req: Request, res: Response) => {
+router.post('/segment', aiSegmentRateLimiter, validateAiSegment, async (req: Request, res: Response) => {
   const { promptText } = req.body;
-
-  if (!promptText || typeof promptText !== 'string') {
-    return res.status(400).json({ error: 'promptText is required and must be a string.' });
-  }
 
   if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.startsWith('AIzaSy...')) {
     return res.status(500).json({ 
@@ -66,25 +69,20 @@ router.post('/segment', async (req: Request, res: Response) => {
         responseSchema: {
           type: SchemaType.OBJECT,
           properties: {
-            queryType: {
-              type: SchemaType.STRING,
-              enum: ['PRISMA', 'SQL'],
-              description: 'The approach chosen: either a Prisma query filter or a raw SQL query.'
-            },
-            prismaWhereJson: {
-              type: SchemaType.STRING,
-              description: 'A JSON string representing a Prisma CustomerWhereInput object. Empty string if using SQL.'
-            },
-            sqlQuery: {
-              type: SchemaType.STRING,
-              description: 'A PostgreSQL query selecting Customer records. Empty string if using PRISMA.'
-            },
             explanation: {
               type: SchemaType.STRING,
-              description: 'A brief explanation of how the query filter was generated.'
+              description: 'Brief breakdown of query reasoning and relational logic applied.'
+            },
+            prismaQuery: {
+              type: SchemaType.OBJECT,
+              description: 'Structured Prisma findMany arguments object, containing "where" filter conditions. E.g. {"where": {"totalSpends": {"gt": 50}}}. Return empty object {} if not applicable.'
+            },
+            fallbackSql: {
+              type: SchemaType.STRING,
+              description: 'Safe read-only SELECT raw SQL query selecting all fields from Customer table.'
             }
           },
-          required: ['queryType', 'prismaWhereJson', 'sqlQuery', 'explanation']
+          required: ['explanation', 'prismaQuery', 'fallbackSql']
         }
       }
     });
@@ -106,48 +104,57 @@ router.post('/segment', async (req: Request, res: Response) => {
     }
 
     let customers: any[] = [];
+    let executedQuery = '';
+    let queryTypeUsed: 'PRISMA' | 'SQL' = 'PRISMA';
+    let prismaSuccess = false;
 
-    if (queryData.queryType === 'PRISMA') {
-      let parsedWhere = {};
-      if (queryData.prismaWhereJson) {
-        try {
-          parsedWhere = JSON.parse(queryData.prismaWhereJson);
-        } catch (err) {
-          return res.status(502).json({
-            error: 'Failed to parse generated Prisma filter JSON.',
-            prismaWhereJson: queryData.prismaWhereJson
+    // Tier 1: Try Prisma Query
+    if (queryData.prismaQuery && typeof queryData.prismaQuery === 'object' && Object.keys(queryData.prismaQuery).length > 0) {
+      try {
+        const whereClause = queryData.prismaQuery.where || {};
+
+        // Security check on Prisma fields
+        const validation = validatePrismaWhere(whereClause);
+        if (!validation.valid) {
+          return res.status(403).json({
+            error: `Prisma Query Security Violation: ${validation.error}`,
+            prismaQuery: queryData.prismaQuery
           });
         }
+
+        console.log('Running Prisma FindMany with query:', JSON.stringify(queryData.prismaQuery));
+        customers = await prisma.customer.findMany({
+          ...queryData.prismaQuery,
+          include: {
+            orders: true
+          }
+        });
+        executedQuery = JSON.stringify(queryData.prismaQuery);
+        queryTypeUsed = 'PRISMA';
+        prismaSuccess = true;
+      } catch (err: any) {
+        console.warn(`[AI Parser] Prisma query execution failed. Falling back to SQL. Error: ${err.message}`);
       }
+    }
 
-      console.log('Running Prisma FindMany with where clause:', parsedWhere);
-      customers = await prisma.customer.findMany({
-        where: parsedWhere,
-        include: {
-          orders: true
-        }
-      });
-
-    } else if (queryData.queryType === 'SQL') {
-      console.log('Running Raw SQL Query:', queryData.sqlQuery);
-      
-      // Basic safety checks to prevent destructive queries
-      const normalizedSql = queryData.sqlQuery.toUpperCase();
-      if (normalizedSql.includes('INSERT') || normalizedSql.includes('UPDATE') || normalizedSql.includes('DELETE') || normalizedSql.includes('DROP')) {
+    // Tier 2: Fallback to SQL Query if Prisma execution failed, was bypassed, or yielded 0 records
+    if (!prismaSuccess && queryData.fallbackSql && typeof queryData.fallbackSql === 'string' && queryData.fallbackSql.trim().length > 0) {
+      // Security check on Raw SQL
+      const validation = validateSqlQuery(queryData.fallbackSql);
+      if (!validation.valid) {
         return res.status(403).json({
-          error: 'Generated SQL contains forbidden modifying operations.',
-          sqlQuery: queryData.sqlQuery
+          error: `SQL Security Violation: ${validation.error}`,
+          sqlQuery: queryData.fallbackSql
         });
       }
 
-      // Execute raw SQL query.
-      // Note: We use queryRawUnsafe because Gemini dynamically generates the query text.
-      // In a production app, we would sanitize the schema names and enforce strict read-only access.
-      customers = await prisma.$queryRawUnsafe<any[]>(queryData.sqlQuery);
+      console.log('Running Fallback Raw SQL Query:', queryData.fallbackSql);
+      const sqlResult = await prisma.$queryRawUnsafe<any[]>(queryData.fallbackSql);
+      queryTypeUsed = 'SQL';
+      executedQuery = queryData.fallbackSql;
 
-      // If we queried raw, let's fetch full relations for these customers to keep response consistent
-      if (customers.length > 0) {
-        const customerIds = customers.map(c => c.id);
+      if (sqlResult.length > 0) {
+        const customerIds = sqlResult.map(c => c.id);
         customers = await prisma.customer.findMany({
           where: {
             id: { in: customerIds }
@@ -157,15 +164,13 @@ router.post('/segment', async (req: Request, res: Response) => {
           }
         });
       }
-    } else {
-      return res.status(500).json({ error: 'Unrecognized query type returned from AI model.' });
     }
 
     return res.json({
       success: true,
-      queryType: queryData.queryType,
+      queryType: queryTypeUsed,
       explanation: queryData.explanation,
-      generatedQuery: queryData.queryType === 'PRISMA' ? queryData.prismaWhereJson : queryData.sqlQuery,
+      generatedQuery: executedQuery,
       audienceSize: customers.length,
       customers
     });

@@ -63,14 +63,13 @@ describe('POST /api/ai/segment - AI Parsing Route', () => {
   });
 
   it('should parse prompt into a PRISMA query and query database successfully', async () => {
-    // Mock successful Prisma response from Gemini
+    // Mock successful Prisma response from Gemini using new multi-tier schema
     mockModelInstance.generateContent.mockResolvedValueOnce({
       response: {
         text: () => JSON.stringify({
-          queryType: 'PRISMA',
-          prismaWhereJson: JSON.stringify({ totalSpends: { gt: 100 } }),
-          sqlQuery: '',
-          explanation: 'Targeting customers who spent more than 100'
+          explanation: 'Targeting customers who spent more than 100',
+          prismaQuery: { where: { totalSpends: { gt: 100 } } },
+          fallbackSql: 'SELECT * FROM "Customer" WHERE "totalSpends" > 100'
         })
       }
     });
@@ -87,14 +86,13 @@ describe('POST /api/ai/segment - AI Parsing Route', () => {
   });
 
   it('should parse prompt into a SQL query and query database successfully', async () => {
-    // Mock successful SQL response from Gemini
+    // Mock successful SQL response from Gemini using new multi-tier schema
     mockModelInstance.generateContent.mockResolvedValueOnce({
       response: {
         text: () => JSON.stringify({
-          queryType: 'SQL',
-          prismaWhereJson: '',
-          sqlQuery: 'SELECT * FROM "Customer" WHERE "totalSpends" > 30 AND "totalSpends" < 100',
-          explanation: 'Targeting customers with spends between 30 and 100'
+          explanation: 'Targeting customers with spends between 30 and 100',
+          prismaQuery: {},
+          fallbackSql: 'SELECT * FROM "Customer" WHERE "totalSpends" > 30 AND "totalSpends" < 100'
         })
       }
     });
@@ -111,14 +109,13 @@ describe('POST /api/ai/segment - AI Parsing Route', () => {
   });
 
   it('should return 403 if generated SQL query contains forbidden modifications', async () => {
-    // Mock malicious SQL injection from Gemini
+    // Mock malicious SQL injection from Gemini using new multi-tier schema
     mockModelInstance.generateContent.mockResolvedValueOnce({
       response: {
         text: () => JSON.stringify({
-          queryType: 'SQL',
-          prismaWhereJson: '',
-          sqlQuery: 'DROP TABLE "Customer";',
-          explanation: 'Attempting delete'
+          explanation: 'Attempting delete',
+          prismaQuery: {},
+          fallbackSql: 'DROP TABLE "Customer";'
         })
       }
     });
@@ -128,7 +125,7 @@ describe('POST /api/ai/segment - AI Parsing Route', () => {
       .send({ promptText: 'Delete all users' });
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toContain('forbidden modifying operations');
+    expect(res.body.error).toContain('Security Violation');
   });
 
   it('should handle invalid JSON responses from the Gemini API gracefully', async () => {

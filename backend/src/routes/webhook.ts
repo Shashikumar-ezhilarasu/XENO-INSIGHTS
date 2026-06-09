@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../config/prisma';
 
+import { validateWebhookCallback } from '../middleware/security';
+
 const router = Router();
 
 // Define logical precedence for communication statuses to prevent race conditions
@@ -17,7 +19,7 @@ const STATUS_PRECEDENCE: Record<string, number> = {
  * Consumes real-time webhook updates from the mock channel.
  * Body: { communicationId: string, status: string, errorMsg?: string, timestamp: string }
  */
-router.post('/channel-callback', async (req: Request, res: Response) => {
+router.post('/channel-callback', validateWebhookCallback, async (req: Request, res: Response) => {
   const { communicationId, status, errorMsg } = req.body;
 
   if (!communicationId || !status) {
