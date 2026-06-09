@@ -6,3 +6,30 @@ datasource db {
 generator client {
   provider = "prisma-client-js"
 }
+
+model Customer {
+  id             String          @id @default(uuid())
+  name           String
+  email          String          @unique
+  phone          String
+  totalSpends    Float           @default(0.0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  orders         Order[]
+  communications Communication[]
+
+  @@index([email])
+}
+
+model Order {
+  id        String   @id @default(uuid())
+  customerId String
+  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  amount    Float
+  itemCount Int      @default(1)
+  category  String   // e.g. "COFFEE", "FASHION"
+  createdAt DateTime @default(now())
+
+  @@index([customerId])
+  @@index([customerId, category, amount])
+}
