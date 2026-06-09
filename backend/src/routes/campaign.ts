@@ -21,6 +21,8 @@ Database Schema Details:
    - email: string (unique)
    - phone: string
    - totalSpends: float (cached total spend across all orders)
+   - lastVisitDate: DateTime (optional, last visit date)
+   - loyaltyPoints: integer (loyalty rewards balance)
    - createdAt: DateTime
    - updatedAt: DateTime
 
@@ -43,7 +45,6 @@ Instructions:
 
 /**
  * Helper to resolve customer segment using the saved promptText (Gemini segmentation)
- * Runs query validator checks for security.
  */
 async function resolveCustomerSegment(promptText: string): Promise<string[]> {
   if (!apiKey || apiKey.startsWith('AIzaSy...')) {
@@ -107,12 +108,16 @@ async function resolveCustomerSegment(promptText: string): Promise<string[]> {
 
 /**
  * POST /api/campaigns/create
- * Saves campaign metadata (name, promptText, channel, messageTemplate).
- * Applied validation middleware.
+ * Saves campaign metadata (name, promptText, channel, messageTemplate, messageTemplateB, imageUrl, buttons).
  */
 router.post('/create', validateCampaignCreate, async (req: Request, res: Response) => {
   try {
-    const { name, promptText, channel, messageTemplate } = req.body;
+    const { name, promptText, channel, messageTemplate, messageTemplateB, imageUrl, buttons } = req.body;
+
+    let serializedButtons = null;
+    if (buttons) {
+      serializedButtons = typeof buttons === 'string' ? buttons : JSON.stringify(buttons);
+    }
 
     const campaign = await prisma.campaign.create({
       data: {
@@ -120,6 +125,9 @@ router.post('/create', validateCampaignCreate, async (req: Request, res: Respons
         promptText: promptText || null,
         channel: channel.toUpperCase(),
         messageTemplate: messageTemplate || null,
+        messageTemplateB: messageTemplateB || null,
+        imageUrl: imageUrl || null,
+        buttons: serializedButtons
       }
     });
 
@@ -132,9 +140,8 @@ router.post('/create', validateCampaignCreate, async (req: Request, res: Respons
 
 /**
  * POST /api/campaigns/send
- * Launches campaign execution. Inserts 'PENDING' communication entries,
- * triggers async channel dispatch, and instantly returns 202 Accepted.
- * Applied rate-limiting (10req/min) and body validation.
+ * Launches campaign execution. Splits variants for A/B testing, interpolates 
+ * hyper-personalized variables, and sends payloads to the stub service.
  */
 router.post('/send', campaignSendRateLimiter, validateCampaignSend, async (req: Request, res: Response) => {
   try {
@@ -168,36 +175,47 @@ router.post('/send', campaignSendRateLimiter, validateCampaignSend, async (req: 
       return res.status(200).json({ success: true, message: 'Audience segment is empty. No messages to send.', audienceSize: 0 });
     }
 
-    // Fetch targets contact info to ensure they exist
+    // Fetch targets contact and order histories to evaluate personalization attributes
     const customers = await prisma.customer.findMany({
-      where: { id: { in: targets } }
+      where: { id: { in: targets } },
+      include: {
+        orders: {
+          orderBy: { createdAt: 'desc' }
+        }
+      }
     });
 
     if (customers.length === 0) {
       return res.status(400).json({ error: 'No valid customers found matching the specified audience.' });
     }
 
-    // Pre-generate UUIDs for the Communication log rows.
-    const communicationRecords = customers.map(c => ({
-      id: crypto.randomUUID(),
-      customerId: c.id,
-      campaignId: campaign.id,
-      status: 'PENDING'
-    }));
+    // A/B Testing split configuration:
+    // If the campaign has Variant B template, split recipients 50% variant A, 50% variant B.
+    const isABTest = Boolean(campaign.messageTemplateB);
 
-    // Insert communication logs into the DB.
+    const communicationRecords = customers.map((c, index) => {
+      const variant = isABTest ? (index % 2 === 0 ? 'A' : 'B') : 'A';
+      return {
+        id: crypto.randomUUID(),
+        customerId: c.id,
+        campaignId: campaign.id,
+        status: 'PENDING',
+        variant: variant
+      };
+    });
+
+    // Write communication records into database
     await prisma.$transaction([
       prisma.communication.createMany({
         data: communicationRecords
       })
     ]);
 
-    // Dynamic Server Port for background requests.
     const port = process.env.PORT || 3000;
     const channelServiceUrl = `http://localhost:${port}/api/stub/channel-send`;
 
     setImmediate(() => {
-      console.log(`[Campaign Engine] Initiating async dispatch for ${communicationRecords.length} messages.`);
+      console.log(`[Campaign Engine] Initiating async dispatch for ${communicationRecords.length} messages. A/B Test: ${isABTest}`);
       
       const customerMap = new Map(customers.map(c => [c.id, c]));
 
@@ -206,6 +224,51 @@ router.post('/send', campaignSendRateLimiter, validateCampaignSend, async (req: 
         if (!customer) return;
 
         try {
+          // Calculate hyper-personalized attributes
+          const latestOrder = customer.orders && customer.orders.length > 0 ? customer.orders[0] : null;
+          const lastPurchasedItem = latestOrder ? latestOrder.category : 'special item';
+          
+          // Favorite category (most frequent order category)
+          const categoryCounts: Record<string, number> = {};
+          customer.orders.forEach(o => {
+            categoryCounts[o.category] = (categoryCounts[o.category] || 0) + 1;
+          });
+          
+          let favoriteCategory = 'our products';
+          let maxCount = 0;
+          Object.entries(categoryCounts).forEach(([cat, count]) => {
+            if (count > maxCount) {
+              maxCount = count;
+              favoriteCategory = cat;
+            }
+          });
+
+          const loyaltyPoints = customer.loyaltyPoints;
+
+          // Select correct template based on A/B test variant assignment
+          const baseTemplate = (record.variant === 'B' && campaign.messageTemplateB)
+            ? campaign.messageTemplateB
+            : (campaign.messageTemplate || '');
+
+          // Replace personalized variables dynamically
+          const personalizedMessage = baseTemplate
+            .replace(/\{\{\s*name\s*\}\}/gi, customer.name)
+            .replace(/\{\{\s*last_purchased_item\s*\}\}/gi, lastPurchasedItem)
+            .replace(/\{\{\s*favorite_category\s*\}\}/gi, favoriteCategory)
+            .replace(/\{\{\s*total_loyalty_points\s*\}\}/gi, String(loyaltyPoints));
+
+          // Parse button actions
+          let buttonsArray = undefined;
+          if (campaign.buttons) {
+            try {
+              buttonsArray = JSON.parse(campaign.buttons);
+            } catch (e) {
+              // If not JSON, split by comma
+              buttonsArray = campaign.buttons.split(',').map(b => b.trim());
+            }
+          }
+
+          // Call the stub channel send endpoint
           const response = await fetch(channelServiceUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -217,9 +280,9 @@ router.post('/send', campaignSendRateLimiter, validateCampaignSend, async (req: 
                 email: customer.email
               },
               channel: campaign.channel,
-              message: campaign.messageTemplate
-                ? campaign.messageTemplate.replace(/\{\{\s*name\s*\}\}/gi, customer.name)
-                : `Hi ${customer.name}, check out our campaign: ${campaign.name}!`
+              message: personalizedMessage,
+              imageUrl: campaign.imageUrl || undefined,
+              buttons: buttonsArray
             })
           });
 

@@ -21,6 +21,8 @@ Database Schema Details:
    - email: string (unique)
    - phone: string
    - totalSpends: float (cached total spend across all orders)
+   - lastVisitDate: DateTime (optional, last visit timestamp)
+   - loyaltyPoints: integer (loyalty rewards balance)
    - createdAt: DateTime
    - updatedAt: DateTime
 

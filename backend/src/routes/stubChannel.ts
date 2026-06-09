@@ -4,7 +4,7 @@ const router = Router();
 
 interface CallbackPayload {
   communicationId: string;
-  status: 'DELIVERED' | 'OPENED' | 'FAILED';
+  status: 'DELIVERED' | 'OPENED' | 'CLICKED' | 'FAILED';
   errorMsg?: string;
   timestamp: string;
 }
@@ -18,10 +18,10 @@ async function sendWebhookWithRetry(
   attempt: number = 1
 ): Promise<void> {
   const maxRetries = 3;
-  const baseDelayMs = 1000; // 1 second base delay
+  const baseDelayMs = 1000;
 
   try {
-    console.log(`[Webhook Client] Attempt ${attempt} sending callback for ${payload.communicationId} to ${callbackUrl}`);
+    console.log(`[Webhook Client] Attempt ${attempt} sending callback "${payload.status}" for ${payload.communicationId} to ${webhookUrlFormat(callbackUrl)}`);
     
     const response = await fetch(callbackUrl, {
       method: 'POST',
@@ -30,44 +30,47 @@ async function sendWebhookWithRetry(
     });
 
     if (response.ok) {
-      console.log(`[Webhook Client] Callback succeeded for ${payload.communicationId} on attempt ${attempt}.`);
+      console.log(`[Webhook Client] Callback "${payload.status}" succeeded for ${payload.communicationId} on attempt ${attempt}.`);
       return;
     }
 
-    console.warn(`[Webhook Client] Callback returned non-200 status (${response.status}) on attempt ${attempt}.`);
-    
-    if (attempt < maxRetries) {
-      const backoffDelay = baseDelayMs * Math.pow(2, attempt); // 2s, 4s, 8s...
-      console.log(`[Webhook Client] Scheduling retry in ${backoffDelay}ms...`);
-      setTimeout(() => {
-        sendWebhookWithRetry(callbackUrl, payload, attempt + 1);
-      }, backoffDelay);
-    } else {
-      console.error(`[Webhook Client] Max retries (${maxRetries}) reached. Callback failed for ${payload.communicationId}.`);
-    }
-
-  } catch (error: any) {
-    console.error(`[Webhook Client] Connection error on attempt ${attempt} for ${payload.communicationId}:`, error.message);
+    console.warn(`[Webhook Client] Callback "${payload.status}" returned non-200 status (${response.status}) on attempt ${attempt}.`);
     
     if (attempt < maxRetries) {
       const backoffDelay = baseDelayMs * Math.pow(2, attempt);
-      console.log(`[Webhook Client] Scheduling retry in ${backoffDelay}ms...`);
       setTimeout(() => {
         sendWebhookWithRetry(callbackUrl, payload, attempt + 1);
       }, backoffDelay);
-    } else {
-      console.error(`[Webhook Client] Max retries (${maxRetries}) reached. Callback failed for ${payload.communicationId}.`);
     }
+
+  } catch (error: any) {
+    console.error(`[Webhook Client] Connection error on attempt ${attempt} for callback "${payload.status}":`, error.message);
+    
+    if (attempt < maxRetries) {
+      const backoffDelay = baseDelayMs * Math.pow(2, attempt);
+      setTimeout(() => {
+        sendWebhookWithRetry(callbackUrl, payload, attempt + 1);
+      }, backoffDelay);
+    }
+  }
+}
+
+function webhookUrlFormat(url: string) {
+  try {
+    const u = new URL(url);
+    return u.pathname;
+  } catch (e) {
+    return url;
   }
 }
 
 /**
  * POST /api/stub/channel-send
- * Simulates receiving transmission payloads.
- * Body: { communicationId: string, recipient: { name, phone, email }, channel: string, message: string }
+ * Simulates receiving transmission payloads and fires sequential webhooks.
+ * Body: { communicationId, recipient, channel, message, imageUrl, buttons }
  */
 router.post('/channel-send', (req: Request, res: Response) => {
-  const { communicationId, recipient, channel, message } = req.body;
+  const { communicationId, channel, buttons } = req.body;
 
   if (!communicationId || !channel) {
     return res.status(400).json({ error: 'communicationId and channel are required.' });
@@ -80,47 +83,58 @@ router.post('/channel-send', (req: Request, res: Response) => {
   const port = process.env.PORT || 3000;
   const webhookUrl = `http://localhost:${port}/api/webhooks/channel-callback`;
 
-  /**
-   * DESIGN CHOICE (Simulating network delay & probability distributions):
-   * We use setTimeout to simulate an asynchronous network propagation delay (1.5 seconds).
-   * Once triggered, we use random probabilities to assign status:
-   *  - 80% DELIVERED
-   *  - 10% OPENED
-   *  - 10% FAILED
-   */
-  const simulatedDelayMs = 1500;
+  // Start sequential lifecycle callback updates
+  const hasButtons = Boolean(buttons && Array.isArray(buttons) && buttons.length > 0);
+
+  // 1. First step: DELIVERED or FAILED (after 1.5s)
   setTimeout(async () => {
-    try {
-      const rand = Math.random();
-      let status: 'DELIVERED' | 'OPENED' | 'FAILED';
-      let errorMsg: string | undefined;
+    const isSuccessful = Math.random() < 0.90; // 90% delivery rate
 
-      if (rand < 0.80) {
-        status = 'DELIVERED';
-      } else if (rand < 0.90) {
-        status = 'OPENED';
-      } else {
-        status = 'FAILED';
-        errorMsg = 'Channel transmission error: Subscriber handset out of range or blocked.';
-      }
-
-      console.log(`[Mock Channel] Transmission complete for ${communicationId}. Outcome: ${status}`);
-
-      const payload: CallbackPayload = {
+    if (!isSuccessful) {
+      // Dispatch FAILED callback
+      await sendWebhookWithRetry(webhookUrl, {
         communicationId,
-        status,
-        errorMsg,
+        status: 'FAILED',
+        errorMsg: 'Handset unreachable or invalid subscriber number.',
         timestamp: new Date().toISOString()
-      };
-
-      // Trigger the webhook callback back to the CRM receiver.
-      // This runs asynchronously in the background.
-      await sendWebhookWithRetry(webhookUrl, payload);
-
-    } catch (err) {
-      console.error('[Mock Channel] Unexpected error in background simulation:', err);
+      });
+      return;
     }
-  }, simulatedDelayMs);
+
+    // Dispatch DELIVERED callback
+    await sendWebhookWithRetry(webhookUrl, {
+      communicationId,
+      status: 'DELIVERED',
+      timestamp: new Date().toISOString()
+    });
+
+    // 2. Second step: OPENED (after another 1.5s, 80% probability)
+    setTimeout(async () => {
+      const isOpened = Math.random() < 0.80;
+      if (!isOpened) return;
+
+      await sendWebhookWithRetry(webhookUrl, {
+        communicationId,
+        status: 'OPENED',
+        timestamp: new Date().toISOString()
+      });
+
+      // 3. Third step: CLICKED (after another 1.5s, 50% probability if has buttons or links)
+      setTimeout(async () => {
+        const isClicked = Math.random() < (hasButtons ? 0.70 : 0.40); // higher click rate with rich media buttons
+        if (!isClicked) return;
+
+        await sendWebhookWithRetry(webhookUrl, {
+          communicationId,
+          status: 'CLICKED',
+          timestamp: new Date().toISOString()
+        });
+
+      }, 1500);
+
+    }, 1500);
+
+  }, 1500);
 });
 
 export default router;

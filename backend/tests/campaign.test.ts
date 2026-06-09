@@ -82,4 +82,46 @@ describe('Campaign & Webhook Async Integration Lifecycle', () => {
     });
     expect(updatedComm?.status).toBe('DELIVERED');
   });
+
+  it('3. POST /api/campaigns/send (A/B testing) - Should split targets 50/50 into variants A and B', async () => {
+    // A. Create an A/B campaign
+    const abCampaign = await prisma.campaign.create({
+      data: {
+        name: 'AB Promo Test',
+        channel: 'WHATSAPP',
+        messageTemplate: 'Variant A: Hi {{name}}',
+        messageTemplateB: 'Variant B: Hi {{name}}',
+        buttons: '["Buy Now", "Opt Out"]'
+      }
+    });
+
+    // B. Seed two test customers
+    const c1 = await prisma.customer.create({
+      data: { name: 'User A', email: 'usera@example.com', phone: '+11111' }
+    });
+    const c2 = await prisma.customer.create({
+      data: { name: 'User B', email: 'userb@example.com', phone: '+22222' }
+    });
+
+    // C. Trigger send
+    const res = await request(app)
+      .post('/api/campaigns/send')
+      .send({
+        campaignId: abCampaign.id,
+        customerIds: [c1.id, c2.id]
+      });
+
+    expect(res.status).toBe(202);
+    expect(res.body.audienceSize).toBe(2);
+
+    // D. Verify DB state (one variant A, one variant B)
+    const comms = await prisma.communication.findMany({
+      where: { campaignId: abCampaign.id }
+    });
+
+    expect(comms.length).toBe(2);
+    const variants = comms.map(c => c.variant);
+    expect(variants).toContain('A');
+    expect(variants).toContain('B');
+  });
 });

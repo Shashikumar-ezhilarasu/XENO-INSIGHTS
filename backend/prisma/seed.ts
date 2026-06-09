@@ -35,6 +35,7 @@ function getRandomInt(min: number, max: number): number {
 
 async function main() {
   console.log('🧹 Cleaning up old database tables...');
+  await prisma.trigger.deleteMany({});
   await prisma.communication.deleteMany({});
   await prisma.campaign.deleteMany({});
   await prisma.order.deleteMany({});
@@ -55,17 +56,17 @@ async function main() {
       email,
       phone,
       totalSpends: 0.0,
+      loyaltyPoints: getRandomInt(10, 500),
+      lastVisitDate: null as Date | null
     });
   }
 
   console.log('🛍️ Generating relational purchase history (Orders)...');
-  const orders = [];
+  const orders: any[] = [];
   const customerSpendMap = new Map<string, number>();
 
   for (const customer of customers) {
     // Determine a varied number of orders per customer
-    // We want to make sure some customers specifically spend over $50 on Coffee in the last 30 days.
-    // Let's use weights similar to seed_data.py
     const numOrdersRand = Math.random();
     let numOrders = 0;
     if (numOrdersRand < 0.1) numOrders = 0;
@@ -77,26 +78,47 @@ async function main() {
     else numOrders = 10;
 
     let totalSpent = 0;
+    const customerOrders = [];
+
+    // Ensure we create a few customers whose lastVisitDate hits exactly 30 days ago for triggers testing
+    const forceTriggerDay = Math.random() < 0.15; // 15% probability
 
     for (let o = 0; o < numOrders; o++) {
       const amount = Math.round(getRandomRange(5.0, 150.0) * 100) / 100;
       const itemCount = getRandomInt(1, 4);
       const category = getRandomElement(CATEGORIES);
-      // Create orders over the last 60 days
-      const daysAgo = getRandomInt(0, 60);
+      
+      let daysAgo = getRandomInt(0, 75);
+      if (forceTriggerDay && o === 0) {
+        daysAgo = 30; // Force latest order 30 days ago
+      }
+
       const createdAt = new Date();
       createdAt.setDate(createdAt.getDate() - daysAgo);
 
-      orders.push({
+      const order = {
         id: crypto.randomUUID(),
         customerId: customer.id,
         amount,
         itemCount,
         category,
         createdAt,
-      });
+      };
 
+      orders.push(order);
+      customerOrders.push(order);
       totalSpent += amount;
+    }
+
+    // Sort orders to find the latest order and set lastVisitDate
+    if (customerOrders.length > 0) {
+      customerOrders.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      customer.lastVisitDate = customerOrders[0].createdAt;
+    } else {
+      // Set lastVisitDate to a default old date (e.g. 70 days ago)
+      const oldDate = new Date();
+      oldDate.setDate(oldDate.getDate() - getRandomInt(65, 80));
+      customer.lastVisitDate = oldDate;
     }
 
     customerSpendMap.set(customer.id, totalSpent);
@@ -128,27 +150,31 @@ async function main() {
       name: campaignName,
       promptText,
       messageTemplate,
+      messageTemplateB: "Hey {{name}}! Coffee is on us today! Enjoy 15% off using code COFFEE15. Buy Now!",
       channel,
       status: "COMPLETED",
       createdAt: campaignCreatedAt,
     }
   });
 
-  // Pick a sample of 15 customers to have communications
+  // Create A/B testing communications logs (half A, half B)
   const shuffledCustomers = [...customers].sort(() => 0.5 - Math.random());
-  const sampleCustomers = shuffledCustomers.slice(0, 15);
+  const sampleCustomers = shuffledCustomers.slice(0, 16);
   
   const communications = [];
-  const statuses = ['DELIVERED', 'OPENED', 'FAILED'];
-  const statusWeights = [0.6, 0.3, 0.1]; // 60% DELIVERED, 30% OPENED, 10% FAILED
-
-  for (const customer of sampleCustomers) {
+  const statuses = ['DELIVERED', 'OPENED', 'CLICKED', 'FAILED'];
+  
+  sampleCustomers.forEach((customer, index) => {
+    const variant = index % 2 === 0 ? 'A' : 'B';
     const rand = Math.random();
     let status = 'DELIVERED';
-    if (rand < statusWeights[0]) {
-      status = 'DELIVERED';
-    } else if (rand < statusWeights[0] + statusWeights[1]) {
+    
+    if (rand < 0.5) {
+      status = 'CLICKED';
+    } else if (rand < 0.8) {
       status = 'OPENED';
+    } else if (rand < 0.95) {
+      status = 'DELIVERED';
     } else {
       status = 'FAILED';
     }
@@ -161,13 +187,24 @@ async function main() {
       campaignId,
       customerId: customer.id,
       status,
+      variant,
       createdAt: timeStamp,
       updatedAt: timeStamp,
     });
-  }
+  });
 
   await prisma.communication.createMany({
     data: communications
+  });
+
+  console.log('⏰ Creating automated Cron Reminder Triggers...');
+  await prisma.trigger.create({
+    data: {
+      name: "We Miss You WhatsApp Reminder (30 Days Recency)",
+      type: "LAST_VISIT_30_DAYS",
+      campaignId: campaignId,
+      isActive: true,
+    }
   });
 
   console.log('📊 Database population completed smoothly!');

@@ -11,7 +11,8 @@ const STATUS_PRECEDENCE: Record<string, number> = {
   SENT: 1,
   DELIVERED: 2,
   OPENED: 3,
-  FAILED: 4
+  CLICKED: 4,
+  FAILED: 5
 };
 
 /**

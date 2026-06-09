@@ -13,6 +13,8 @@ model Customer {
   email          String          @unique
   phone          String
   totalSpends    Float           @default(0.0)
+  lastVisitDate  DateTime?
+  loyaltyPoints  Int             @default(0)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   orders         Order[]
@@ -27,7 +29,7 @@ model Order {
   customer  Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   amount    Float
   itemCount Int      @default(1)
-  category  String   // e.g. "COFFEE", "FASHION"
+  category  String   // e.g. "Coffee", "Fashion"
   createdAt DateTime @default(now())
 
   @@index([customerId])
@@ -39,10 +41,14 @@ model Campaign {
   name            String
   promptText      String?
   messageTemplate String?
+  messageTemplateB String?        // Variant B template for A/B testing
+  imageUrl        String?         // Optional image URL for Rich Media
+  buttons         String?         // Serialized JSON of buttons, e.g. '["Buy Now", "Opt Out"]'
   channel         String          // "WHATSAPP" | "EMAIL" | "SMS" | "RCS"
   status          String          @default("PENDING")
   createdAt       DateTime        @default(now())
   communications  Communication[]
+  triggers        Trigger[]
 }
 
 model Communication {
@@ -51,7 +57,8 @@ model Communication {
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   campaignId String
   campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  status     String   // "PENDING" | "SENT" | "DELIVERED" | "OPENED" | "FAILED"
+  status     String   // "PENDING" | "SENT" | "DELIVERED" | "OPENED" | "CLICKED" | "FAILED"
+  variant    String   @default("A") // A/B testing variant: "A" or "B"
   errorMsg   String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -59,4 +66,16 @@ model Communication {
   @@index([customerId])
   @@index([campaignId])
   @@index([status])
+}
+
+model Trigger {
+  id         String   @id @default(uuid())
+  name       String
+  type       String   // e.g. "LAST_VISIT_30_DAYS"
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  @@index([campaignId])
 }

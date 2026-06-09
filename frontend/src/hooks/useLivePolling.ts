@@ -8,6 +8,9 @@ export interface CampaignAnalyticItem {
   channel: string;
   promptText: string | null;
   messageTemplate: string | null;
+  messageTemplateB: string | null;
+  imageUrl: string | null;
+  buttons: string | null;
   createdAt: string;
   totalMessages: number;
   statusCounts: {
@@ -15,12 +18,18 @@ export interface CampaignAnalyticItem {
     sent: number;
     delivered: number;
     opened: number;
+    clicked: number;
     failed: number;
   };
   rates: {
     deliveryRatePercent: number;
     openRatePercent: number;
+    clickRatePercent: number;
     failRatePercent: number;
+  };
+  variants?: {
+    A: any;
+    B: any;
   };
 }
 

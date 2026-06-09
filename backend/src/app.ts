@@ -9,6 +9,8 @@ import aiRouter from './routes/ai';
 import campaignRouter from './routes/campaign';
 import stubChannelRouter from './routes/stubChannel';
 import webhookRouter from './routes/webhook';
+import triggersRouter from './routes/triggers';
+import { initCron } from './config/cron';
 
 // Load environment variables
 dotenv.config();
@@ -34,6 +36,7 @@ app.use('/api/ai', aiRouter);
 app.use('/api/campaigns', campaignRouter);
 app.use('/api/stub', stubChannelRouter);
 app.use('/api/webhooks', webhookRouter);
+app.use('/api/triggers', triggersRouter);
 
 // Health check endpoint (including database connection status check)
 app.get('/health', async (req: Request, res: Response) => {
@@ -67,6 +70,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 
 // Start Express server and verify DB connectivity
 if (process.env.NODE_ENV !== 'test') {
+  initCron();
   app.listen(port, async () => {
     console.log(`========================================`);
     console.log(`CRM Backend Server running on port ${port}`);
