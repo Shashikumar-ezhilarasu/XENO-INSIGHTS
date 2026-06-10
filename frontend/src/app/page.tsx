@@ -10,7 +10,7 @@ import { Badge } from '../components/ui/badge';
 import { 
   Users, Send, CheckCircle2, Eye, Loader2, Sparkles, 
   AlertTriangle, Moon, Award, Calendar, ShoppingBag, 
-  ArrowRight, User, X, Landmark, TrendingUp
+  ArrowRight, User, X, Landmark, TrendingUp, Search
 } from 'lucide-react';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
@@ -33,6 +33,9 @@ interface CustomerProfile {
   referrerId: string | null;
   referrer?: { name: string; email: string } | null;
   referred?: { id: string; name: string }[];
+  mostPurchasedCategory?: string;
+  totalOrdersCount?: number;
+  orders?: any[];
 }
 
 const MOCK_CUSTOMERS_360: CustomerProfile[] = [
@@ -113,6 +116,68 @@ const MOCK_RFM = {
   }
 };
 
+const MOCK_DASHBOARD = {
+  totalCustomers: 100,
+  totalOrders: 154,
+  netSales: 12450.80,
+  repeatRate: 42.5,
+  recencyDistribution: {
+    '0-30': 34,
+    '31-60': 28,
+    '61-90': 18,
+    '90+': 20
+  },
+  funnel: {
+    sent: 450,
+    delivered: 432,
+    opened: 310,
+    clicked: 142,
+    failed: 18,
+    deliveredPercent: 96,
+    openedPercent: 68.8,
+    failedPercent: 4
+  },
+  orderFrequencySeries: [12, 19, 15, 8, 22, 18, 24]
+};
+
+const Sparkline = ({ data }: { data: number[] }) => {
+  if (!data || data.length === 0) return null;
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const width = 100;
+  const height = 30;
+  const points = data.map((val, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((val - min) / range) * height - 2;
+    return `${x},${y}`;
+  }).join(' ');
+
+  return (
+    <svg width={width} height={height} className="overflow-visible opacity-80">
+      <polyline
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        points={points}
+        className="text-purple-500"
+      />
+    </svg>
+  );
+};
+
+const formatSalesValue = (val: number) => {
+  if (val >= 1000000) {
+    return `$${(val / 1000000).toFixed(1)} Mn`;
+  }
+  if (val >= 1000) {
+    return `$${(val / 1000).toFixed(1)} K`;
+  }
+  return `$${val.toFixed(2)}`;
+};
+
 export default function OverviewPage() {
   const router = useRouter();
   const { setSelectedAudience } = useSharedState();
@@ -130,6 +195,11 @@ export default function OverviewPage() {
   const [customersLoading, setCustomersLoading] = useState(true);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerProfile | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Real-time Database Dashboard Stats
+  const [dashboardStats, setDashboardStats] = useState<any>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
 
   // Fetch RFM customer clusters
   useEffect(() => {
@@ -156,47 +226,70 @@ export default function OverviewPage() {
     loadRfm();
   }, []);
 
-  // Fetch customer lists for 360-degree view
+  // Fetch customer lists for 360-degree view with search support
   useEffect(() => {
+    let active = true;
     async function fetchCustomers() {
+      setCustomersLoading(true);
       try {
-        const res = await fetch(`${BACKEND_URL}/api/customers?limit=6`);
-        if (res.ok) {
+        const url = searchQuery 
+          ? `${BACKEND_URL}/api/customers?limit=6&search=${encodeURIComponent(searchQuery)}`
+          : `${BACKEND_URL}/api/customers?limit=6`;
+        const res = await fetch(url);
+        if (res.ok && active) {
           const json = await res.json();
-          setCustomers(json.data || MOCK_CUSTOMERS_360);
-        } else {
-          setCustomers(MOCK_CUSTOMERS_360);
+          setCustomers(json.data || []);
+        } else if (active) {
+          const lower = searchQuery.toLowerCase();
+          const filtered = MOCK_CUSTOMERS_360.filter(c => c.name.toLowerCase().includes(lower) || c.email.toLowerCase().includes(lower));
+          setCustomers(filtered);
         }
       } catch (e) {
         console.warn('Error fetching customers, using offline fallback:', e);
-        setCustomers(MOCK_CUSTOMERS_360);
+        if (active) {
+          const lower = searchQuery.toLowerCase();
+          const filtered = MOCK_CUSTOMERS_360.filter(c => c.name.toLowerCase().includes(lower) || c.email.toLowerCase().includes(lower));
+          setCustomers(filtered);
+        }
       } finally {
-        setCustomersLoading(false);
+        if (active) setCustomersLoading(false);
       }
     }
-    fetchCustomers();
+
+    const delayDebounceFn = setTimeout(() => {
+      fetchCustomers();
+    }, 150);
+
+    return () => {
+      active = false;
+      clearTimeout(delayDebounceFn);
+    };
+  }, [searchQuery]);
+
+  // Fetch dashboard dynamic metrics
+  useEffect(() => {
+    async function loadDashboardStats() {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/analytics/dashboard`);
+        if (res.ok) {
+          const data = await res.json();
+          setDashboardStats(data);
+        } else {
+          setDashboardStats(MOCK_DASHBOARD);
+        }
+      } catch (err) {
+        console.warn('Failed to load dashboard statistics, using mock:', err);
+        setDashboardStats(MOCK_DASHBOARD);
+      } finally {
+        setDashboardLoading(false);
+      }
+    }
+    loadDashboardStats();
   }, []);
 
-  // Derived SaaS Metrics
+  // Derived SaaS Metrics (Campaign audits counts)
   const totalCampaigns = analytics.length;
   const activeCampaigns = analytics.filter(c => c.statusCounts.pending > 0).length;
-  
-  const totalAudienceEngaged = analytics.reduce((sum, c) => sum + c.totalMessages, 0);
-  const totalDelivered = analytics.reduce((sum, c) => sum + c.statusCounts.delivered + c.statusCounts.opened + c.statusCounts.clicked, 0);
-  const totalOpened = analytics.reduce((sum, c) => sum + c.statusCounts.opened + c.statusCounts.clicked, 0);
-  const totalClicked = analytics.reduce((sum, c) => sum + (c.statusCounts.clicked || 0), 0);
-
-  const avgDeliveryRate = totalAudienceEngaged > 0
-    ? Math.round((totalDelivered / totalAudienceEngaged) * 10000) / 100
-    : 0;
-    
-  const avgOpenRate = totalAudienceEngaged > 0
-    ? Math.round((totalOpened / totalAudienceEngaged) * 10000) / 100
-    : 0;
-
-  const avgClickRate = totalAudienceEngaged > 0
-    ? Math.round((totalClicked / totalAudienceEngaged) * 10000) / 100
-    : 0;
 
   // Format campaigns for audit table listing
   const campaignsList = analytics.map(item => {
@@ -236,34 +329,6 @@ export default function OverviewPage() {
     setIsDrawerOpen(true);
   };
 
-  // Simulated Lifecycle Journeys performance metrics
-  const lifecycleJourneys = [
-    {
-      name: "New Customer Welcome Track",
-      activeUsers: 48,
-      avgDelivery: "96.4%",
-      revenueGain: "$450.00",
-      status: "Active",
-      channelSplit: "Email & SMS"
-    },
-    {
-      name: "90-Day Churn Prevention",
-      activeUsers: 84,
-      avgDelivery: "92.1%",
-      revenueGain: "$1,280.00",
-      status: "Active",
-      channelSplit: "WhatsApp & SMS"
-    },
-    {
-      name: "Loyalty Tier Birthday Surprise",
-      activeUsers: 14,
-      avgDelivery: "98.2%",
-      revenueGain: "$320.00",
-      status: "Active",
-      channelSplit: "RCS Push"
-    }
-  ];
-
   return (
     <div className="space-y-8 animate-fadeIn relative pb-20">
       {/* Header */}
@@ -281,6 +346,106 @@ export default function OverviewPage() {
           {error}
         </div>
       )}
+
+      {/* Real-time DB Aggregations: High-Fidelity KPI Cards */}
+      {dashboardLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="h-24 flex items-center justify-center">
+                <Loader2 className="w-5 h-5 animate-spin text-neutral-400" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : dashboardStats ? (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {/* Card 1: Total Orders */}
+          <Card className="shadow-sm border border-border">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                Total Transaction Orders
+              </CardTitle>
+              <ShoppingBag className="w-4 h-4 text-purple-500" />
+            </CardHeader>
+            <CardContent className="flex items-center justify-between">
+              <div>
+                <span className="text-3xl font-black font-mono text-foreground">{dashboardStats.totalOrders}</span>
+                <span className="text-[10px] text-neutral-500 block mt-1">Recorded checkout events</span>
+              </div>
+              <div className="pt-2">
+                <Sparkline data={dashboardStats.orderFrequencySeries} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 2: Repeat Orders */}
+          <Card className="shadow-sm border border-border">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                Repeat Customer Rate
+              </CardTitle>
+              <Users className="w-4 h-4 text-blue-500" />
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <span className="text-3xl font-black font-mono text-foreground">{dashboardStats.repeatRate.toFixed(1)}%</span>
+              <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden border border-border mt-1.5">
+                <div 
+                  className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full"
+                  style={{ width: `${dashboardStats.repeatRate}%` }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 3: Total Net Sales */}
+          <Card className="shadow-sm border border-border">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                Total Net Sales Value
+              </CardTitle>
+              <Landmark className="w-4 h-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <span className="text-3xl font-black font-mono text-green-600 dark:text-green-500">
+                {formatSalesValue(dashboardStats.netSales)}
+              </span>
+              <span className="text-[10px] text-neutral-500 block mt-1">Cumulative lifetime spend total</span>
+            </CardContent>
+          </Card>
+
+          {/* Card 4: Funnel / Conversion */}
+          <Card className="shadow-sm border border-border">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                Conversion Delivery Funnel
+              </CardTitle>
+              <Award className="w-4 h-4 text-yellow-500" />
+            </CardHeader>
+            <CardContent className="flex items-center justify-between">
+              <div>
+                <span className="text-3xl font-black font-mono text-foreground">
+                  {dashboardStats.funnel.deliveredPercent.toFixed(1)}%
+                </span>
+                <span className="text-[10px] text-neutral-500 block mt-1">Successful transmissions</span>
+              </div>
+              
+              {/* Minimal vertical bar alignment */}
+              <div className="flex items-end gap-1.5 h-10 w-16 px-1">
+                <div className="w-2.5 bg-purple-500/20 h-full rounded-t-sm relative" title="Sent (100%)">
+                  <div className="bg-purple-500 w-full absolute bottom-0 rounded-t-xs" style={{ height: '100%' }} />
+                </div>
+                <div className="w-2.5 bg-green-500/20 h-full rounded-t-sm relative" title={`Delivered (${dashboardStats.funnel.deliveredPercent.toFixed(0)}%)`}>
+                  <div className="bg-green-500 w-full absolute bottom-0 rounded-t-xs" style={{ height: `${dashboardStats.funnel.deliveredPercent}%` }} />
+                </div>
+                <div className="w-2.5 bg-blue-500/20 h-full rounded-t-sm relative" title={`Opened (${dashboardStats.funnel.openedPercent.toFixed(0)}%)`}>
+                  <div className="bg-blue-500 w-full absolute bottom-0 rounded-t-xs" style={{ height: `${dashboardStats.funnel.openedPercent}%` }} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
 
       {/* RFM AI Clustering Tiles */}
       <section className="space-y-4">
@@ -340,50 +505,52 @@ export default function OverviewPage() {
         ) : null}
       </section>
 
-      {/* Dynamic Audience 360 Hub and Lifecycle Journeys split grid */}
+      {/* Dynamic Audience 360 Hub and Recency Matrices split grid */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left column: Lifecycle Journeys Track - 7 cols */}
+        
+        {/* Left column: Recency Distribution Matrices - 7 cols */}
         <div className="lg:col-span-7 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
               <TrendingUp className="w-4 h-4 text-purple-500" />
-              Automated Lifecycle Journeys & Revenue Gains
+              Shopper Recency Distribution Base
             </h2>
             <Badge className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-none font-semibold text-[10px]">
-              Platform Growth Engines
+              Database Recency Slots
             </Badge>
           </div>
           <Card className="shadow-sm border border-border">
-            <CardContent className="p-0">
-              <div className="divide-y divide-border">
-                {lifecycleJourneys.map((journey, idx) => (
-                  <div key={idx} className="p-4 flex items-center justify-between hover:bg-secondary/15 transition duration-200">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm text-foreground">{journey.name}</span>
-                        <span className="px-1.5 py-0.2 bg-green-500/10 border border-green-500/20 text-green-600 text-[9px] font-bold rounded-full uppercase">
-                          {journey.status}
-                        </span>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-bold">Base Engagement Segments</CardTitle>
+              <CardDescription>Renders calculated recency intervals from your live PostgreSQL transaction base</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-2">
+              {dashboardLoading || !dashboardStats ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="w-5 h-5 animate-spin text-neutral-400" />
+                </div>
+              ) : (
+                ['0-30 Days', '31-60 Days', '61-90 Days', '90+ Days'].map((tier, idx) => {
+                  const keys = ['0-30', '31-60', '61-90', '90+'] as const;
+                  const key = keys[idx];
+                  const count = dashboardStats.recencyDistribution[key] || 0;
+                  const percent = dashboardStats.totalCustomers > 0 ? (count / dashboardStats.totalCustomers) * 100 : 0;
+                  return (
+                    <div key={tier} className="space-y-1.5">
+                      <div className="flex justify-between text-xs font-semibold">
+                        <span className="text-foreground">{tier}</span>
+                        <span className="text-neutral-500">{count} shoppers ({percent.toFixed(1)}%)</span>
                       </div>
-                      <p className="text-xs text-neutral-400 font-medium">Split Strategy: {journey.channelSplit}</p>
+                      <div className="w-full h-2 bg-secondary rounded-full overflow-hidden border border-border">
+                        <div 
+                          className="h-full bg-gradient-to-r from-purple-500 to-indigo-600 rounded-full transition-all duration-500"
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-6 text-right">
-                      <div>
-                        <span className="text-[10px] text-neutral-500 uppercase tracking-widest font-bold block">Active Cohorts</span>
-                        <span className="text-sm font-semibold font-mono">{journey.activeUsers} profiles</span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-neutral-500 uppercase tracking-widest font-bold block">Deliv Rate</span>
-                        <span className="text-sm font-semibold font-mono text-purple-600 dark:text-purple-400">{journey.avgDelivery}</span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-neutral-500 uppercase tracking-widest font-bold block text-green-600">Net Revenue</span>
-                        <span className="text-sm font-bold font-mono text-green-600">{journey.revenueGain}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  );
+                })
+              )}
             </CardContent>
           </Card>
         </div>
@@ -396,8 +563,32 @@ export default function OverviewPage() {
           </h2>
           <Card className="shadow-sm border border-border">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-bold">Shopper Activity Feed</CardTitle>
-              <CardDescription>Select individual shoppers to inspect their 360-degree behavioral card</CardDescription>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-sm font-bold">Shopper Activity Feed</CardTitle>
+                  <CardDescription>Select individual shoppers to inspect their 360-degree behavioral card</CardDescription>
+                </div>
+              </div>
+              
+              {/* Search Bar Input */}
+              <div className="mt-3 relative flex items-center bg-secondary/30 border border-border rounded-xl px-3 py-1.5 focus-within:border-neutral-400 dark:focus-within:border-neutral-600 transition duration-300">
+                <Search className="w-3.5 h-3.5 text-neutral-500 mr-2 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Search shopper by name or email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-transparent outline-none text-xs text-foreground placeholder-neutral-500"
+                />
+                {searchQuery && (
+                  <button 
+                    onClick={() => setSearchQuery('')}
+                    className="text-[10px] text-neutral-500 hover:text-foreground font-semibold px-1 shrink-0"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
               {customersLoading ? (
@@ -436,71 +627,14 @@ export default function OverviewPage() {
       {isLoading && analytics.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 space-y-4">
           <Loader2 className="w-8 h-8 animate-spin text-foreground" />
-          <p className="text-neutral-500 text-sm font-medium">Synchronizing dashboard metrics...</p>
+          <p className="text-neutral-500 text-sm font-medium">Synchronizing campaign summaries...</p>
         </div>
       ) : (
         <>
-          {/* SaaS KPI Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                  Total Campaigns
-                </CardTitle>
-                <Send className="w-4 h-4 text-purple-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{totalCampaigns}</div>
-                <p className="text-xs text-neutral-500 mt-1">
-                  {activeCampaigns} currently executing
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                  Total Reach
-                </CardTitle>
-                <Users className="w-4 h-4 text-blue-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{totalAudienceEngaged}</div>
-                <p className="text-xs text-neutral-500 mt-1">
-                  Total messages sent
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                  Avg Delivery Rate
-                </CardTitle>
-                <CheckCircle2 className="w-4 h-4 text-green-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{avgDeliveryRate}%</div>
-                <p className="text-xs text-neutral-500 mt-1">
-                  Delivery success ratio
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                  Avg Click Rate
-                </CardTitle>
-                <Eye className="w-4 h-4 text-yellow-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{avgClickRate}%</div>
-                <p className="text-xs text-neutral-500 mt-1">
-                  Interaction click-through rate
-                </p>
-              </CardContent>
-            </Card>
+          {/* SaaS campaigns details info */}
+          <div className="p-4 bg-secondary/10 border border-border rounded-xl flex items-center justify-between text-xs text-neutral-500">
+            <span>Platform Campaign Executions count: <strong className="text-foreground">{totalCampaigns}</strong> active.</span>
+            <span>Currently Sending: <strong className="text-purple-600 font-bold">{activeCampaigns}</strong></span>
           </div>
 
           {/* Audit Logs Table */}
@@ -549,7 +683,29 @@ export default function OverviewPage() {
                   <Landmark className="w-24 h-24 text-purple-500" />
                 </div>
                 <div className="space-y-1">
-                  <span className="text-xl font-extrabold text-foreground">{selectedCustomer.name}</span>
+                  <div className="flex flex-wrap gap-1.5 mb-1">
+                    {(selectedCustomer.favoriteCategory === 'Coffee' || selectedCustomer.mostPurchasedCategory === 'Coffee') && (
+                      <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                        ☕ Coffee Addict
+                      </span>
+                    )}
+                    {(selectedCustomer.favoriteCategory === 'Bakery' || selectedCustomer.mostPurchasedCategory === 'Bakery') && (
+                      <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-orange-500/20 text-orange-600 dark:text-orange-400 uppercase tracking-wider">
+                        🥐 Pastry Enthusiast
+                      </span>
+                    )}
+                    {selectedCustomer.totalSpends > 500 && (
+                      <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 uppercase tracking-wider">
+                        👑 Elite VIP Spender
+                      </span>
+                    )}
+                    {selectedCustomer.loyaltyPoints > 200 && (
+                      <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-purple-500/20 text-purple-600 dark:text-purple-400 uppercase tracking-wider">
+                        💎 Gold Tier
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xl font-extrabold text-foreground block">{selectedCustomer.name}</span>
                   <span className="text-xs text-neutral-400 block font-medium">{selectedCustomer.email}</span>
                   <span className="text-xs text-neutral-400 block font-mono font-medium">{selectedCustomer.phone}</span>
                 </div>
@@ -634,6 +790,55 @@ export default function OverviewPage() {
                   {selectedCustomer.referrerId && (
                     <div className="p-2 bg-background/50 border border-border rounded-lg text-[10px] text-neutral-400 font-mono">
                       Referrer ID: {selectedCustomer.referrerId}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Shopper Insights & Analytics */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Shopper Insights & Analytics</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-secondary/30 border border-border rounded-xl space-y-1">
+                    <span className="text-[9px] text-neutral-500 uppercase font-bold block">Most Purchased</span>
+                    <span className="text-xs font-bold text-foreground">{selectedCustomer.mostPurchasedCategory || selectedCustomer.favoriteCategory || 'Coffee'}</span>
+                  </div>
+                  <div className="p-3 bg-secondary/30 border border-border rounded-xl space-y-1">
+                    <span className="text-[9px] text-neutral-500 uppercase font-bold block">Interested Category</span>
+                    <span className="text-xs font-bold text-foreground">{selectedCustomer.favoriteCategory}</span>
+                  </div>
+                  <div className="p-3 bg-secondary/30 border border-border rounded-xl space-y-1">
+                    <span className="text-[9px] text-neutral-500 uppercase font-bold block">Total Orders</span>
+                    <span className="text-xs font-bold text-foreground">{selectedCustomer.totalOrdersCount || (selectedCustomer.orders ? selectedCustomer.orders.length : 0)} checkouts</span>
+                  </div>
+                  <div className="p-3 bg-secondary/30 border border-border rounded-xl space-y-1">
+                    <span className="text-[9px] text-neutral-500 uppercase font-bold block">Average Order Value</span>
+                    <span className="text-xs font-mono font-bold text-green-600 dark:text-green-400">
+                      ${(selectedCustomer.totalSpends / Math.max(1, selectedCustomer.totalOrdersCount || (selectedCustomer.orders ? selectedCustomer.orders.length : 1))).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recent Transaction History */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Recent Transaction History</h4>
+                <div className="divide-y divide-border border border-border rounded-xl overflow-hidden bg-background max-h-48 overflow-y-auto">
+                  {selectedCustomer.orders && selectedCustomer.orders.length > 0 ? (
+                    selectedCustomer.orders.map((order: any) => (
+                      <div key={order.id} className="p-3 flex items-center justify-between text-xs hover:bg-secondary/10">
+                        <div className="space-y-0.5">
+                          <span className="font-semibold text-foreground">{order.category}</span>
+                          <span className="text-[9px] text-neutral-400 block">
+                            {new Date(order.createdAt).toLocaleDateString()} • {order.itemCount || 1} {order.itemCount === 1 ? 'item' : 'items'}
+                          </span>
+                        </div>
+                        <span className="text-green-600 font-bold font-mono">${order.amount.toFixed(2)}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center text-xs text-neutral-500">
+                      No transaction records found.
                     </div>
                   )}
                 </div>
