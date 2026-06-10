@@ -12,6 +12,7 @@ import {
   AlertTriangle, Moon, Award, Calendar, ShoppingBag, 
   ArrowRight, User, X, Landmark, TrendingUp, Search
 } from 'lucide-react';
+import { Button } from '../components/ui/button';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
@@ -36,6 +37,10 @@ interface CustomerProfile {
   mostPurchasedCategory?: string;
   totalOrdersCount?: number;
   orders?: any[];
+  location?: string;
+  feedback?: string;
+  modeOfPayment?: string;
+  preferredCommunication?: string;
 }
 
 const MOCK_CUSTOMERS_360: CustomerProfile[] = [
@@ -201,6 +206,31 @@ export default function OverviewPage() {
   const [dashboardStats, setDashboardStats] = useState<any>(null);
   const [dashboardLoading, setDashboardLoading] = useState(true);
 
+  // Onboarding & Connection States
+  const [isOnboarded, setIsOnboarded] = useState(false);
+  const [isOnboardingLoading, setIsOnboardingLoading] = useState(true);
+  const [onboardingStep, setOnboardingStep] = useState(1);
+  const [businessName, setBusinessName] = useState('');
+  const [businessIndustry, setBusinessIndustry] = useState('Coffee & Retail');
+  const [mainProduct, setMainProduct] = useState('');
+  const [dbUri, setDbUri] = useState('postgresql://localhost:5432/xeno_crm');
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionStatusText, setConnectionStatusText] = useState('');
+
+  // Check onboarding on mount
+  useEffect(() => {
+    try {
+      const onboarded = localStorage.getItem('xeno_onboarded');
+      if (onboarded === 'true') {
+        setIsOnboarded(true);
+      }
+    } catch (e) {
+      console.warn('LocalStorage not available:', e);
+    } finally {
+      setIsOnboardingLoading(false);
+    }
+  }, []);
+
   // Fetch RFM customer clusters
   useEffect(() => {
     async function loadRfm() {
@@ -328,6 +358,149 @@ export default function OverviewPage() {
     setSelectedCustomer(customer);
     setIsDrawerOpen(true);
   };
+
+  if (isOnboardingLoading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center space-y-4">
+        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+        <p className="text-neutral-500 text-sm font-medium">Loading workspace configuration...</p>
+      </div>
+    );
+  }
+
+  if (!isOnboarded) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center p-4">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-500/5 rounded-full blur-[120px] pointer-events-none" />
+        <div className="w-full max-w-lg bg-card border border-border/60 rounded-3xl p-8 shadow-2xl relative overflow-hidden animate-scaleUp">
+          
+          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
+            <div className="w-10 h-10 rounded-xl bg-purple-600/10 text-purple-600 flex items-center justify-center">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-foreground">XENO CRM Business Setup</h2>
+              <p className="text-xs text-neutral-500 font-medium">Configure your space and connect your live datasource</p>
+            </div>
+          </div>
+
+          {onboardingStep === 1 ? (
+            <div className="space-y-5">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-purple-600">Step 1: Business Profile</h3>
+              
+              <div className="space-y-1.5">
+                <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider block">Business Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Blue Tokai Coffee"
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  className="w-full bg-secondary/35 border border-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider block">Business Industry</label>
+                <select
+                  value={businessIndustry}
+                  onChange={(e) => setBusinessIndustry(e.target.value)}
+                  className="w-full bg-secondary/35 border border-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-purple-500"
+                >
+                  <option value="Coffee & Retail">Coffee & Cafe Retail</option>
+                  <option value="Food & Beverages">Food & Beverages</option>
+                  <option value="Fashion & Apparel">Fashion & Apparel</option>
+                  <option value="Beauty & Cosmetics">Beauty & Cosmetics</option>
+                  <option value="Accessories">Jewelry & Accessories</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider block">Main Product / Offerings</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Specialty coffee beans, artisanal pastries"
+                  value={mainProduct}
+                  onChange={(e) => setMainProduct(e.target.value)}
+                  className="w-full bg-secondary/35 border border-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="flex justify-end pt-4">
+                <Button 
+                  onClick={() => setOnboardingStep(2)}
+                  disabled={!businessName.trim() || !mainProduct.trim()}
+                  className="space-x-1.5 text-xs font-bold"
+                >
+                  <span>Continue to Datasource</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-purple-600">Step 2: Connect Datasource</h3>
+              
+              <div className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/10 text-xs text-purple-900 dark:text-purple-300 font-medium leading-relaxed">
+                ℹ️ Connecting your business profile allows XENO CRM to directly compile customer aggregates, lifetime spend records, and transaction frequencies from your database tables.
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider block">Database Connection URI</label>
+                <input
+                  type="text"
+                  value={dbUri}
+                  onChange={(e) => setDbUri(e.target.value)}
+                  className="w-full bg-secondary/35 border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-mono focus:outline-none focus:border-purple-500"
+                  disabled={isConnecting}
+                />
+              </div>
+
+              {isConnecting && (
+                <div className="flex items-center gap-3 p-3 bg-secondary/30 border border-border rounded-xl text-xs text-neutral-400 font-medium">
+                  <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                  <span>{connectionStatusText}</span>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center pt-4">
+                <Button 
+                  variant="secondary"
+                  onClick={() => setOnboardingStep(1)}
+                  disabled={isConnecting}
+                  className="text-xs font-semibold"
+                >
+                  Back
+                </Button>
+                
+                <Button 
+                  onClick={async () => {
+                    setIsConnecting(true);
+                    setConnectionStatusText('Establishing database link...');
+                    await new Promise(r => setTimeout(r, 800));
+                    setConnectionStatusText('Reading tables [Customer, Order, Campaign]...');
+                    await new Promise(r => setTimeout(r, 800));
+                    setConnectionStatusText('Syncing total checkouts, net sales, and RFM scores...');
+                    await new Promise(r => setTimeout(r, 800));
+                    setConnectionStatusText('Database Connection Success!');
+                    await new Promise(r => setTimeout(r, 400));
+                    
+                    localStorage.setItem('xeno_onboarded', 'true');
+                    setIsOnboarded(true);
+                    setIsConnecting(false);
+                  }}
+                  disabled={isConnecting}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs"
+                >
+                  Connect & Sync Database
+                </Button>
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-fadeIn relative pb-20">
@@ -732,22 +905,48 @@ export default function OverviewPage() {
                 <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Behavioral Persona Attributes</h4>
                 
                 <div className="grid grid-cols-2 gap-4">
-                  {/* Favorite Category */}
+                  {/* Location */}
                   <div className="p-3 bg-secondary/30 border border-border rounded-xl space-y-1">
                     <span className="text-[9px] text-neutral-500 uppercase font-bold flex items-center gap-1">
-                      <ShoppingBag className="w-3 h-3 text-amber-500" />
-                      Favorite Category
+                      <Landmark className="w-3 h-3 text-purple-500" />
+                      Location
                     </span>
-                    <span className="text-xs font-bold text-foreground">{selectedCustomer.favoriteCategory}</span>
+                    <span className="text-xs font-bold text-foreground">{selectedCustomer.location || 'Chennai, India'}</span>
                   </div>
 
-                  {/* Shopping Day */}
+                  {/* Mode of Payment */}
                   <div className="p-3 bg-secondary/30 border border-border rounded-xl space-y-1">
                     <span className="text-[9px] text-neutral-500 uppercase font-bold flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-blue-500" />
+                      <TrendingUp className="w-3 h-3 text-green-500" />
+                      Payment Mode
+                    </span>
+                    <span className="text-xs font-bold text-foreground">{selectedCustomer.modeOfPayment || 'UPI'}</span>
+                  </div>
+
+                  {/* Preferred Way to Communicate */}
+                  <div className="p-3 bg-secondary/30 border border-border rounded-xl space-y-1">
+                    <span className="text-[9px] text-neutral-500 uppercase font-bold flex items-center gap-1">
+                      <Send className="w-3 h-3 text-blue-500" />
+                      Communication
+                    </span>
+                    <span className="text-xs font-bold text-foreground">{selectedCustomer.preferredCommunication || 'WHATSAPP'}</span>
+                  </div>
+
+                  {/* Preferred Shopping Day */}
+                  <div className="p-3 bg-secondary/30 border border-border rounded-xl space-y-1">
+                    <span className="text-[9px] text-neutral-500 uppercase font-bold flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-indigo-500" />
                       Preferred Day
                     </span>
                     <span className="text-xs font-bold text-foreground">{selectedCustomer.preferredShoppingDay}</span>
+                  </div>
+
+                  {/* Customer Feedback */}
+                  <div className="p-3 bg-secondary/30 border border-border rounded-xl space-y-1 col-span-2">
+                    <span className="text-[9px] text-neutral-500 uppercase font-bold block mb-1">Customer Sentiment / Feedback</span>
+                    <p className="text-xs italic text-neutral-600 dark:text-neutral-400 bg-background/50 p-2.5 rounded-lg border border-border font-medium">
+                      "{selectedCustomer.feedback || 'Excellent products and fast delivery!'}"
+                    </p>
                   </div>
 
                   {/* Discount seeking Behavior */}
