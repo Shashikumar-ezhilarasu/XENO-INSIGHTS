@@ -3,12 +3,197 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSharedState } from '../../hooks/useSharedState';
-import { Send, Loader2, CheckCircle2, AlertCircle, ArrowLeft, ToggleLeft, ToggleRight, Sparkles } from 'lucide-react';
+import { PlayCircle, Zap, Image as ImageIcon, MessageSquare, Mail, Layers, Send, Loader2, CheckCircle2, AlertCircle, ArrowLeft, ToggleLeft, ToggleRight, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+
+function CampaignInspirationHub() {
+  const router = useRouter();
+
+  return (
+    <div className="w-full space-y-12 animate-fadeIn pb-20">
+      {/* Hero Video Banner */}
+      <div className="relative w-full h-[400px] sm:h-[450px] rounded-3xl overflow-hidden shadow-2xl group flex items-center justify-center">
+        {/* We use a high quality stock marketing video */}
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:scale-105 group-hover:opacity-60 transition-all duration-700"
+        >
+          <source src="https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4" />
+        </video>
+        
+        {/* Overlay gradient */}
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent z-10" />
+        
+        {/* Hero Content */}
+        <div className="relative z-20 text-center px-4 max-w-2xl mx-auto space-y-6 transform translate-y-8">
+          <Badge className="bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border-purple-500/30 px-3 py-1 font-bold tracking-widest uppercase text-xs animate-pulse">
+            Inspiration Gallery
+          </Badge>
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-white tracking-tight drop-shadow-xl leading-tight">
+            Ignite Your <br className="hidden sm:block" /><span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500">Marketing Strategy</span>
+          </h1>
+          <p className="text-sm sm:text-base text-neutral-200 font-medium drop-shadow-md px-4 sm:px-0">
+            Explore world-class campaign formats. Select an idea, define your audience, and launch campaigns that convert.
+          </p>
+          <Button 
+            onClick={() => router.push('/segments')}
+            size="lg" 
+            className="rounded-full bg-white text-black hover:bg-neutral-200 font-bold px-8 py-6 shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all"
+          >
+            <Zap className="w-5 h-5 mr-2" />
+            Pick Audience & Start Drafting
+          </Button>
+        </div>
+      </div>
+
+      {/* Masonry / Grid Gallery of Ideas */}
+      <div className="space-y-6">
+        <div className="flex items-center gap-2 px-2">
+          <Layers className="w-5 h-5 text-purple-500" />
+          <h2 className="text-xl font-bold tracking-tight">Campaign Formats</h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          
+          {/* Card 1: Luxury Poster Ad */}
+          <div className="group relative rounded-2xl overflow-hidden bg-card border border-border shadow-md hover:shadow-xl hover:border-purple-500/30 transition-all duration-300 flex flex-col h-[420px]">
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/80 z-10" />
+            <img 
+              src="/campaigns/luxury_promo.png" 
+              alt="Luxury Promo Ad" 
+              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+            />
+            <div className="relative z-20 mt-auto p-6 flex flex-col space-y-3 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
+              <div className="flex items-center gap-2">
+                <Badge className="bg-amber-500/20 text-amber-300 border-none font-bold text-[10px]">Rich Media</Badge>
+                <Badge className="bg-black/50 text-white backdrop-blur-md border-none font-bold text-[10px]">VIP</Badge>
+              </div>
+              <h3 className="text-white font-bold text-lg leading-tight">Artisan Roast Brand Awareness</h3>
+              <p className="text-neutral-300 text-xs font-medium line-clamp-2">High-end visual posters designed for WhatsApp & RCS to re-engage VIP spenders.</p>
+              <Button 
+                onClick={() => router.push('/segments')}
+                variant="secondary" 
+                size="sm" 
+                className="w-fit bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                Draft Similar Format
+              </Button>
+            </div>
+          </div>
+
+          {/* Card 2: Cyberpunk Sneaker Drop */}
+          <div className="group relative rounded-2xl overflow-hidden bg-card border border-border shadow-md hover:shadow-xl hover:border-cyan-500/30 transition-all duration-300 flex flex-col h-[420px]">
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/80 z-10" />
+            <img 
+              src="/campaigns/sneaker_drop.png" 
+              alt="Sneaker Drop Ad" 
+              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+            />
+            <div className="relative z-20 mt-auto p-6 flex flex-col space-y-3 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
+              <div className="flex items-center gap-2">
+                <Badge className="bg-cyan-500/20 text-cyan-300 border-none font-bold text-[10px]">Social Drop</Badge>
+                <Badge className="bg-black/50 text-white backdrop-blur-md border-none font-bold text-[10px]">Apparel</Badge>
+              </div>
+              <h3 className="text-white font-bold text-lg leading-tight">Neon Pulse Sneaker Launch</h3>
+              <p className="text-neutral-300 text-xs font-medium line-clamp-2">Vibrant, high-energy media blocks for new product announcements.</p>
+              <Button 
+                onClick={() => router.push('/segments')}
+                variant="secondary" 
+                size="sm" 
+                className="w-fit bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                Draft Similar Format
+              </Button>
+            </div>
+          </div>
+
+          {/* Card 3: Email Newsletter Mockup */}
+          <div className="group relative rounded-2xl overflow-hidden bg-card border border-border shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-[420px] p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
+                <Mail className="w-4 h-4 text-blue-500" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-foreground">Email Newsletter</h3>
+                <p className="text-[10px] text-neutral-500 font-medium">Long-form retention</p>
+              </div>
+            </div>
+            
+            {/* Newsletter Mock */}
+            <div className="flex-1 w-full bg-secondary/50 rounded-xl border border-border overflow-hidden flex flex-col">
+              {/* Browser header */}
+              <div className="h-6 w-full bg-secondary border-b border-border flex items-center px-2 gap-1">
+                <div className="w-2 h-2 rounded-full bg-red-400" />
+                <div className="w-2 h-2 rounded-full bg-amber-400" />
+                <div className="w-2 h-2 rounded-full bg-green-400" />
+              </div>
+              <div className="p-4 space-y-4">
+                <div className="w-full h-24 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 rounded-lg flex items-center justify-center">
+                  <ImageIcon className="w-6 h-6 text-indigo-400/50" />
+                </div>
+                <div className="space-y-2">
+                  <div className="w-3/4 h-3 bg-neutral-200 dark:bg-neutral-700 rounded-full" />
+                  <div className="w-full h-2 bg-neutral-100 dark:bg-neutral-800 rounded-full" />
+                  <div className="w-5/6 h-2 bg-neutral-100 dark:bg-neutral-800 rounded-full" />
+                </div>
+                <div className="w-20 h-6 bg-blue-500 rounded-md mx-auto mt-4" />
+              </div>
+            </div>
+            
+            <div className="mt-4">
+              <Button onClick={() => router.push('/segments')} className="w-full text-xs font-semibold" variant="outline">
+                Use Email Template
+              </Button>
+            </div>
+          </div>
+
+          {/* Card 4: WhatsApp / Chat Mockup */}
+          <div className="group relative rounded-2xl overflow-hidden bg-card border border-border shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-[420px] p-6 lg:col-span-3 xl:col-span-1">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center">
+                <MessageSquare className="w-4 h-4 text-green-500" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-foreground">Direct Chat / SMS</h3>
+                <p className="text-[10px] text-neutral-500 font-medium">High conversion, low latency</p>
+              </div>
+            </div>
+            
+            {/* Phone Mock */}
+            <div className="flex-1 w-full max-w-[220px] mx-auto bg-black rounded-[2rem] border-4 border-neutral-800 overflow-hidden flex flex-col relative shadow-inner">
+              <div className="absolute top-0 inset-x-0 h-4 bg-black z-10 rounded-b-xl w-1/2 mx-auto" /> {/* Notch */}
+              <div className="flex-1 bg-green-50/5 dark:bg-neutral-900 p-3 flex flex-col justify-end space-y-2 pb-6">
+                <div className="w-3/4 bg-neutral-200 dark:bg-neutral-800 p-2.5 rounded-2xl rounded-tl-none self-start">
+                  <div className="w-full h-1.5 bg-neutral-300 dark:bg-neutral-700 rounded-full mb-2" />
+                  <div className="w-4/5 h-1.5 bg-neutral-300 dark:bg-neutral-700 rounded-full" />
+                </div>
+                <div className="w-5/6 bg-green-500 p-2.5 rounded-2xl rounded-tr-none self-end">
+                  <div className="w-full h-12 bg-white/20 rounded-lg mb-2" />
+                  <div className="w-full h-1.5 bg-white/60 rounded-full mb-1.5" />
+                  <div className="w-3/4 h-1.5 bg-white/60 rounded-full" />
+                </div>
+              </div>
+            </div>
+            
+            <div className="mt-4">
+              <Button onClick={() => router.push('/segments')} className="w-full text-xs font-semibold" variant="outline">
+                Use Chat Template
+              </Button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function CampaignsPage() {
   const router = useRouter();
@@ -40,24 +225,7 @@ export default function CampaignsPage() {
   }, [selectedAudience]);
 
   if (!selectedAudience) {
-    return (
-      <div className="max-w-md mx-auto py-12 animate-fadeIn">
-        <Card className="text-center">
-          <CardHeader className="flex flex-col items-center space-y-2 pb-4">
-            <AlertCircle className="w-12 h-12 text-yellow-500" />
-            <CardTitle className="text-xl">No Target Segment Selected</CardTitle>
-            <CardDescription>
-              To run a marketing campaign, you must first define a target customer segment using AI or RFM tiles.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-2">
-            <Button onClick={() => router.push('/segments')} className="w-full">
-              Go to Segments Search
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <CampaignInspirationHub />;
   }
 
   const handleLaunchCampaign = async (e: React.FormEvent) => {
