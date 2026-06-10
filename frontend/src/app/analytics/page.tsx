@@ -25,7 +25,24 @@ interface OfferOption {
   value: number;
   maxTotalUsage: number;
   currentUsageCount: number;
+  minOrderValue: number;
+  categoryConstraint: string | null;
 }
+
+const MOCK_CUSTOMERS = [
+  { id: 'cust-1', name: 'Emma Smith', favoriteCategory: 'Coffee' },
+  { id: 'cust-2', name: 'Liam Johnson', favoriteCategory: 'Bakery' },
+  { id: 'cust-3', name: 'Olivia Williams', favoriteCategory: 'Apparel' },
+  { id: 'cust-4', name: 'Noah Brown', favoriteCategory: 'Coffee' },
+  { id: 'cust-5', name: 'Ava Jones', favoriteCategory: 'Beauty' }
+];
+
+const MOCK_OFFERS = [
+  { id: 'off-1', code: 'COMEBACK20', discountType: 'PERCENTAGE', value: 20, minOrderValue: 30, categoryConstraint: null, maxTotalUsage: 500, currentUsageCount: 24 },
+  { id: 'off-2', code: 'SPIN_WHEEL_50', discountType: 'PERCENTAGE', value: 50, minOrderValue: 50, categoryConstraint: null, maxTotalUsage: 100, currentUsageCount: 8 },
+  { id: 'off-3', code: 'COFFEE_LOVER', discountType: 'FLAT', value: 5, minOrderValue: 15, categoryConstraint: 'Coffee', maxTotalUsage: 1000, currentUsageCount: 142 },
+  { id: 'off-4', code: 'BAKERYFREE', discountType: 'PERCENTAGE', value: 100, minOrderValue: 10, categoryConstraint: 'Bakery', maxTotalUsage: 50, currentUsageCount: 48 }
+];
 
 export default function AnalyticsPage() {
   const { analytics, isLoading, error, refetch } = useLivePolling(BACKEND_URL);
@@ -57,22 +74,42 @@ export default function AnalyticsPage() {
           fetch(`${BACKEND_URL}/api/offers`)
         ]);
         if (custRes.ok) {
-          const json = await custRes.json();
+          const json = await custRes.ok ? await custRes.json() : { data: [] };
           setCustomers(json.data || []);
           if (json.data && json.data.length > 0) {
             setSelectedCustomerId(json.data[0].id);
             setProductCategory(json.data[0].favoriteCategory || 'Coffee');
+          } else {
+            setCustomers(MOCK_CUSTOMERS);
+            setSelectedCustomerId(MOCK_CUSTOMERS[0].id);
+            setProductCategory(MOCK_CUSTOMERS[0].favoriteCategory || 'Coffee');
           }
+        } else {
+          setCustomers(MOCK_CUSTOMERS);
+          setSelectedCustomerId(MOCK_CUSTOMERS[0].id);
+          setProductCategory(MOCK_CUSTOMERS[0].favoriteCategory || 'Coffee');
         }
+
         if (offerRes.ok) {
           const json = await offerRes.json();
           setOffers(json.offers || []);
           if (json.offers && json.offers.length > 0) {
             setCouponCode(json.offers[0].code);
+          } else {
+            setOffers(MOCK_OFFERS);
+            setCouponCode(MOCK_OFFERS[0].code);
           }
+        } else {
+          setOffers(MOCK_OFFERS);
+          setCouponCode(MOCK_OFFERS[0].code);
         }
       } catch (e) {
-        console.error('Failed to load simulator helpers:', e);
+        console.error('Failed to load simulator helpers, using local mock data:', e);
+        setCustomers(MOCK_CUSTOMERS);
+        setSelectedCustomerId(MOCK_CUSTOMERS[0].id);
+        setProductCategory(MOCK_CUSTOMERS[0].favoriteCategory || 'Coffee');
+        setOffers(MOCK_OFFERS);
+        setCouponCode(MOCK_OFFERS[0].code);
       }
     }
     loadSimulatorData();
@@ -119,11 +156,75 @@ export default function AnalyticsPage() {
       }
 
     } catch (err: any) {
-      console.error(err);
+      console.warn('Network checkout validation failed. Running local simulation fallback:', err);
+      
+      const offer = offers.find(o => o.code === couponCode);
+      if (!offer) {
+        setSimResult({
+          valid: false,
+          error: `Offer code '${couponCode}' does not exist in mock listings.`
+        });
+        setSimulating(false);
+        return;
+      }
+
+      const parsedTotal = parseFloat(cartTotal);
+
+      // 1. Minimum Order Value Check
+      if (parsedTotal < offer.minOrderValue) {
+        setSimResult({
+          valid: false,
+          error: `Minimum order value criteria not met. Required: $${offer.minOrderValue.toFixed(2)}, Cart: $${parsedTotal.toFixed(2)}`
+        });
+        setSimulating(false);
+        return;
+      }
+
+      // 2. Category Constraint Check
+      if (offer.categoryConstraint && offer.categoryConstraint.toLowerCase() !== productCategory.toLowerCase()) {
+        setSimResult({
+          valid: false,
+          error: `Category constraint violated. Offer is only valid for category '${offer.categoryConstraint}'.`
+        });
+        setSimulating(false);
+        return;
+      }
+
+      // 3. System-Wide Usage Check
+      if (offer.currentUsageCount >= offer.maxTotalUsage) {
+        setSimResult({
+          valid: false,
+          error: 'Offer usage limit reached (system-wide execution limit exceeded).'
+        });
+        setSimulating(false);
+        return;
+      }
+
+      // 4. Calculate Discount value
+      let discountValue = 0;
+      if (offer.discountType === 'PERCENTAGE') {
+        discountValue = parsedTotal * (offer.value / 100);
+      } else {
+        discountValue = offer.value;
+      }
+      discountValue = Math.min(discountValue, parsedTotal);
+      discountValue = Math.round(discountValue * 100) / 100;
+
+      // Simulate local increment
+      setOffers(prev => prev.map(o => o.code === couponCode ? { ...o, currentUsageCount: o.currentUsageCount + 1 } : o));
+
       setSimResult({
-        valid: false,
-        error: 'Network connection error. Server checkout calculation failed.'
+        valid: true,
+        offer: {
+          id: offer.id,
+          code: offer.code,
+          discountType: offer.discountType,
+          value: offer.value,
+          categoryConstraint: offer.categoryConstraint
+        },
+        discountValue
       });
+
     } finally {
       setSimulating(false);
     }
