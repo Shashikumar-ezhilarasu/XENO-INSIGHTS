@@ -112,7 +112,7 @@ async function resolveCustomerSegment(promptText: string): Promise<string[]> {
  */
 router.post('/create', validateCampaignCreate, async (req: Request, res: Response) => {
   try {
-    const { name, promptText, channel, messageTemplate, messageTemplateB, imageUrl, buttons } = req.body;
+    const { name, promptText, channel, messageTemplate, messageTemplateB, imageUrl, buttons, autoSplit } = req.body;
 
     let serializedButtons = null;
     if (buttons) {
@@ -127,7 +127,8 @@ router.post('/create', validateCampaignCreate, async (req: Request, res: Respons
         messageTemplate: messageTemplate || null,
         messageTemplateB: messageTemplateB || null,
         imageUrl: imageUrl || null,
-        buttons: serializedButtons
+        buttons: serializedButtons,
+        autoSplit: autoSplit ?? false
       }
     });
 
@@ -193,12 +194,32 @@ router.post('/send', campaignSendRateLimiter, validateCampaignSend, async (req: 
     // If the campaign has Variant B template, split recipients 50% variant A, 50% variant B.
     const isABTest = Boolean(campaign.messageTemplateB);
 
+    // Dynamic Channel Routing Helper
+    const getChannelForCustomer = (customer: any): string => {
+      const category = customer.favoriteCategory || 'Coffee';
+      const day = customer.preferredShoppingDay || 'Saturday';
+
+      if (category === 'Coffee') {
+        return day === 'Saturday' ? 'WHATSAPP' : 'SMS';
+      } else if (category === 'Bakery') {
+        return 'RCS';
+      } else if (category === 'Apparel' || category === 'Beauty') {
+        return 'EMAIL';
+      } else {
+        return 'SMS';
+      }
+    };
+
+    const customerMap = new Map(customers.map(c => [c.id, c]));
+
     const communicationRecords = customers.map((c, index) => {
       const variant = isABTest ? (index % 2 === 0 ? 'A' : 'B') : 'A';
+      const channelChoice = campaign.autoSplit ? getChannelForCustomer(c) : campaign.channel;
       return {
         id: crypto.randomUUID(),
         customerId: c.id,
         campaignId: campaign.id,
+        channel: channelChoice.toUpperCase(),
         status: 'PENDING',
         variant: variant
       };
@@ -217,8 +238,6 @@ router.post('/send', campaignSendRateLimiter, validateCampaignSend, async (req: 
     setImmediate(() => {
       console.log(`[Campaign Engine] Initiating async dispatch for ${communicationRecords.length} messages. A/B Test: ${isABTest}`);
       
-      const customerMap = new Map(customers.map(c => [c.id, c]));
-
       communicationRecords.forEach(async (record) => {
         const customer = customerMap.get(record.customerId);
         if (!customer) return;
@@ -279,7 +298,7 @@ router.post('/send', campaignSendRateLimiter, validateCampaignSend, async (req: 
                 phone: customer.phone,
                 email: customer.email
               },
-              channel: campaign.channel,
+              channel: record.channel || campaign.channel,
               message: personalizedMessage,
               imageUrl: campaign.imageUrl || undefined,
               buttons: buttonsArray

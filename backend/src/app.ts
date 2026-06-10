@@ -11,6 +11,8 @@ import stubChannelRouter from './routes/stubChannel';
 import webhookRouter from './routes/webhook';
 import triggersRouter from './routes/triggers';
 import aiAgentRouter from './routes/aiAgent';
+import offersRouter from './routes/offers';
+import loyaltyRouter from './routes/loyalty';
 import { initCron } from './config/cron';
 
 // Load environment variables
@@ -34,6 +36,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // Register routes
 app.use('/api', crmRouter);
 app.use('/api', aiAgentRouter);
+app.use('/api', offersRouter);
+app.use('/api', loyaltyRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/campaigns', campaignRouter);
 app.use('/api/stub', stubChannelRouter);
