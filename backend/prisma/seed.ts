@@ -46,6 +46,20 @@ async function main() {
   const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const BEHAVIORS = ['LOW', 'MID', 'HIGH'];
 
+  const LOCATIONS = ['Chennai, India', 'Bengaluru, India', 'Mumbai, India', 'Delhi, India', 'San Francisco, USA', 'London, UK', 'New York, USA', 'Hyderabad, India'];
+  const FEEDBACKS = [
+    'Absolutely love the morning brew here! The best coffee in town.',
+    'Amazing pastries, always fresh and warm. Highly recommend the croissants!',
+    'Great experience, friendly staff, and consistent quality.',
+    'The loyalty reward system is fantastic. Easy checkout too.',
+    'Excellent value, premium quality coffee and bakery items.',
+    'Super fast checkouts and delicious cold brews.',
+    'A cozy experience. Love their apparel collection as well!',
+    'Always my go-to spot for weekend bakery cravings.'
+  ];
+  const PAYMENTS = ['UPI', 'Credit Card', 'Cash', 'Apple Pay', 'Net Banking'];
+  const COMMUNICATIONS = ['WHATSAPP', 'EMAIL', 'SMS', 'RCS'];
+
   console.log('🌱 Generating 100 realistic customer profiles...');
   const customers = [];
   for (let i = 0; i < 100; i++) {
@@ -65,6 +79,10 @@ async function main() {
       favoriteCategory: getRandomElement(CATEGORIES),
       discountSeekingBehavior: getRandomElement(BEHAVIORS),
       preferredShoppingDay: getRandomElement(DAYS_OF_WEEK),
+      location: getRandomElement(LOCATIONS),
+      feedback: getRandomElement(FEEDBACKS),
+      modeOfPayment: getRandomElement(PAYMENTS),
+      preferredCommunication: getRandomElement(COMMUNICATIONS),
       lastVisitDate: null as Date | null
     });
   }
