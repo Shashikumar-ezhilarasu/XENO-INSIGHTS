@@ -28,7 +28,7 @@ Database Schema Details:
    - phone: string
    - totalSpends: float (cached total spend across all orders)
    - lastVisitDate: DateTime (optional, last visit date/time)
-   - loyaltyPoints: integer (loyalty rewards balance)
+   - loyaltyPoints: float (loyalty rewards balance)
    - createdAt: DateTime
    - updatedAt: DateTime
 
@@ -49,7 +49,7 @@ Rules for 'prismaQuery':
 - All Prisma queries must target the exact field names (lastVisitDate, totalSpends, loyaltyPoints). Never use snake_case like last_visit_date.
 
 Instructions:
-You must output a JSON object containing the fields: 'campaignName', 'prismaQuery', 'suggestedChannel', 'explanation', 'copywriteSuite', and 'bannerConfig'.
+You must output a JSON object containing the fields: 'campaignName', 'prismaQuery', 'suggestedChannel', 'explanation', 'copywriteSuite', 'bannerConfig', and 'gamifiedConfig'.
 `;
 
 // Offline presets fallback database
@@ -68,6 +68,11 @@ const OFFLINE_PRESETS = [
       themeGradient: 'from-amber-500 to-orange-600',
       stickerEmoji: '☕',
       primaryCallToAction: 'Claim Free Espresso'
+    },
+    gamifiedConfig: {
+      gameType: 'SCRATCH_CARD',
+      prizePool: 'Free Espresso, 50 Loyalty Points, 20% Off Beans',
+      milestoneTriggerPoints: 100
     },
     prismaQuery: {
       where: {
@@ -94,6 +99,11 @@ const OFFLINE_PRESETS = [
       stickerEmoji: '🎁',
       primaryCallToAction: 'Unlock VIP Gift'
     },
+    gamifiedConfig: {
+      gameType: 'TRIVIA',
+      prizePool: 'Free Pastry, 200 Loyalty Points, VIP Exclusive Gift',
+      milestoneTriggerPoints: 300
+    },
     prismaQuery: {
       where: {
         totalSpends: {
@@ -116,6 +126,11 @@ const OFFLINE_PRESETS = [
       themeGradient: 'from-orange-400 to-rose-600',
       stickerEmoji: '🥐',
       primaryCallToAction: 'Order Warm Croissant'
+    },
+    gamifiedConfig: {
+      gameType: 'SPIN_WHEEL',
+      prizePool: 'Free Croissant, 30 Loyalty Points, Flat $5 Off',
+      milestoneTriggerPoints: 150
     },
     prismaQuery: {
       where: {
@@ -142,6 +157,11 @@ const DEFAULT_PRESET = {
     themeGradient: 'from-purple-500 to-indigo-600',
     stickerEmoji: '👋',
     primaryCallToAction: 'Get 15% Off'
+  },
+  gamifiedConfig: {
+    gameType: 'SPIN_WHEEL',
+    prizePool: 'Free Treat, 20 Loyalty Points, 15% Off Code',
+    milestoneTriggerPoints: 100
   },
   prismaQuery: {
     where: {
@@ -239,9 +259,27 @@ router.post('/ai/draft-campaign', aiSegmentRateLimiter, validateAiSegment, async
                   }
                 },
                 required: ['themeGradient', 'stickerEmoji', 'primaryCallToAction']
+              },
+              gamifiedConfig: {
+                type: SchemaType.OBJECT,
+                properties: {
+                  gameType: {
+                    type: SchemaType.STRING,
+                    description: 'The type of gamification mechanism: SPIN_WHEEL, TRIVIA, or SCRATCH_CARD.'
+                  },
+                  prizePool: {
+                    type: SchemaType.STRING,
+                    description: 'Comma separated list of prizes available (e.g., "Free Croissant, 50 Loyalty Points, 10% Off").'
+                  },
+                  milestoneTriggerPoints: {
+                    type: SchemaType.INTEGER,
+                    description: 'The loyalty milestone target points to unlock the game.'
+                  }
+                },
+                required: ['gameType', 'prizePool', 'milestoneTriggerPoints']
               }
             },
-            required: ['campaignName', 'prismaQuery', 'suggestedChannel', 'explanation', 'copywriteSuite', 'bannerConfig']
+            required: ['campaignName', 'prismaQuery', 'suggestedChannel', 'explanation', 'copywriteSuite', 'bannerConfig', 'gamifiedConfig']
           }
         }
       });
@@ -314,7 +352,8 @@ router.post('/ai/draft-campaign', aiSegmentRateLimiter, validateAiSegment, async
       customerIds,
       explanation: queryData.explanation,
       copywriteSuite: queryData.copywriteSuite,
-      bannerConfig: queryData.bannerConfig
+      bannerConfig: queryData.bannerConfig,
+      gamifiedConfig: queryData.gamifiedConfig
     });
 
   } catch (error: any) {
