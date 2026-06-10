@@ -1,31 +1,45 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useSharedState } from '../../hooks/useSharedState';
-import { 
-  Sparkles, 
-  ArrowRight, 
-  Loader2, 
-  Users, 
-  ArrowRightCircle, 
-  Smartphone, 
-  Send, 
-  CheckCircle2, 
-  Coffee, 
-  Crown, 
-  Utensils, 
-  AlertCircle, 
-  Bot, 
-  Layers, 
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useSharedState } from "../../hooks/useSharedState";
+import {
+  Sparkles,
+  ArrowRight,
+  Loader2,
+  Users,
+  ArrowRightCircle,
+  Smartphone,
+  Send,
+  CheckCircle2,
+  Coffee,
+  Crown,
+  Utensils,
+  AlertCircle,
+  Bot,
+  Layers,
   RefreshCw,
-  Zap
-} from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
-import { Button } from '../../components/ui/button';
+  Zap,
+} from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../../components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../components/ui/table";
+import { Button } from "../../components/ui/button";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000";
 
 interface CampaignDraftData {
   success: boolean;
@@ -60,45 +74,101 @@ interface CampaignDraftData {
 const LOADING_STEPS = [
   "Assembling segment...",
   "Brewing engaging copy...",
-  "Generating ad banners..."
+  "Generating ad banners...",
 ];
 
 const CAMPAIGN_PRESETS = [
   {
-    id: 'coffee-90d',
-    title: '☕ Coffee Win-Back (90d)',
-    description: 'Re-engage coffee lovers missing for 90 days with witty copy and discount voucher.',
-    promptText: 'Bring back coffee lovers missing for 90 days (Witty & Emotional)',
-    channel: 'WHATSAPP',
-    gradient: 'from-amber-500 to-orange-600',
-    emoji: '☕'
+    id: "coffee-90d",
+    category: "F&B / Cafe",
+    title: "☕ Coffee Win-Back (90d)",
+    description:
+      "Re-engage coffee lovers missing for 90 days with witty copy and discount voucher.",
+    promptText:
+      "Bring back coffee lovers missing for 90 days (Witty & Emotional)",
+    channel: "WHATSAPP",
+    gradient: "from-amber-500 to-orange-600",
+    emoji: "☕",
   },
   {
-    id: 'vip-spenders',
-    title: '👑 Luxury VIP Gift (+$500)',
-    description: 'Surprise loyal high-spenders over $500 with a luxury VIP gift package.',
-    promptText: 'Surprise high-spenders over $500 with a luxury VIP gift',
-    channel: 'EMAIL',
-    gradient: 'from-yellow-600 to-amber-900',
-    emoji: '🎁'
+    id: "bakery-nudge",
+    category: "F&B / Cafe",
+    title: "🥐 Bakery Nudge (Hungry Mode)",
+    description:
+      "Nudge recent bakery buyers who haven't ordered this week with fresh pastry offers.",
+    promptText:
+      "Nudge bakery buyers who haven't ordered this week (Hungry mode)",
+    channel: "RCS",
+    gradient: "from-orange-400 to-rose-600",
+    emoji: "🥐",
   },
   {
-    id: 'bakery-nudge',
-    title: '🥐 Bakery Nudge (Hungry Mode)',
-    description: 'Nudge recent bakery buyers who haven\'t ordered this week with fresh pastry offers.',
-    promptText: 'Nudge bakery buyers who haven\'t ordered this week (Hungry mode)',
-    channel: 'RCS',
-    gradient: 'from-orange-400 to-rose-600',
-    emoji: '🥐'
-  }
+    id: "apparel-clearance",
+    category: "Retail & Apparel",
+    title: "👗 Summer Clearance VIP",
+    description: "Target previous summer buyers with early access to clearance sale.",
+    promptText: "Invite past summer buyers to early clearance sale",
+    channel: "EMAIL",
+    gradient: "from-pink-500 to-rose-500",
+    emoji: "👗",
+  },
+  {
+    id: "sneaker-drop",
+    category: "Retail & Apparel",
+    title: "👟 Sneaker Drop Alert",
+    description: "Notify highly active sneakerheads about limited edition drops.",
+    promptText: "Notify active sneakerheads about limited edition drop",
+    channel: "WHATSAPP",
+    gradient: "from-blue-600 to-indigo-600",
+    emoji: "👟",
+  },
+  {
+    id: "skincare-refill",
+    category: "Beauty & Cosmetics",
+    title: "✨ Skincare Refill Nudge",
+    description: "Remind customers who bought serum 60 days ago to restock.",
+    promptText: "Remind serum buyers from 60 days ago to restock",
+    channel: "SMS",
+    gradient: "from-emerald-400 to-teal-500",
+    emoji: "✨",
+  },
+  {
+    id: "vip-spenders",
+    category: "High-Value VIP",
+    title: "👑 Luxury VIP Gift (+$500)",
+    description:
+      "Surprise loyal high-spenders over $500 with a luxury VIP gift package.",
+    promptText: "Surprise high-spenders over $500 with a luxury VIP gift",
+    channel: "EMAIL",
+    gradient: "from-yellow-600 to-amber-900",
+    emoji: "🎁",
+  },
 ];
 
 export default function SegmentsPage() {
   const router = useRouter();
   const { setSelectedAudience } = useSharedState();
 
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState("");
   const [isParsing, setIsParsing] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const categories = ["All", "F&B / Cafe", "Retail & Apparel", "Beauty & Cosmetics", "High-Value VIP"];
+
+  useEffect(() => {
+    try {
+      const industry = localStorage.getItem('xeno_business_industry');
+      if (industry) {
+        const lower = industry.toLowerCase();
+        if (lower.includes('coffee') || lower.includes('bakery') || lower.includes('f&b')) {
+          setSelectedCategory('F&B / Cafe');
+        } else if (lower.includes('apparel') || lower.includes('retail') || lower.includes('fashion')) {
+          setSelectedCategory('Retail & Apparel');
+        } else if (lower.includes('beauty') || lower.includes('cosmetics') || lower.includes('salon')) {
+          setSelectedCategory('Beauty & Cosmetics');
+        }
+      }
+    } catch (e) {}
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [isAgenticMode, setIsAgenticMode] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
@@ -112,14 +182,16 @@ export default function SegmentsPage() {
   } | null>(null);
 
   // Agentic Draft Output
-  const [draftCampaign, setDraftCampaign] = useState<CampaignDraftData | null>(null);
+  const [draftCampaign, setDraftCampaign] = useState<CampaignDraftData | null>(
+    null,
+  );
 
   // Editable Campaign Review Fields
-  const [editCampaignName, setEditCampaignName] = useState('');
-  const [editMessageTemplate, setEditMessageTemplate] = useState('');
-  const [editChannel, setEditChannel] = useState('WHATSAPP');
-  const [selectedTone, setSelectedTone] = useState('WITTY');
-  const [selectedIncentive, setSelectedIncentive] = useState('PERCENTAGE');
+  const [editCampaignName, setEditCampaignName] = useState("");
+  const [editMessageTemplate, setEditMessageTemplate] = useState("");
+  const [editChannel, setEditChannel] = useState("WHATSAPP");
+  const [selectedTone, setSelectedTone] = useState("WITTY");
+  const [selectedIncentive, setSelectedIncentive] = useState("PERCENTAGE");
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [broadcastSuccess, setBroadcastSuccess] = useState(false);
 
@@ -135,15 +207,23 @@ export default function SegmentsPage() {
 
     setSpinResult(null);
     setGamifySuccessMsg(null);
-    
+
     const prizes = draftCampaign.gamifiedConfig.prizePool
-      ? draftCampaign.gamifiedConfig.prizePool.split(',').map(p => p.trim())
-      : ['Free Croissant', '50 Points', '10% Off Coupon', 'Free Coffee', 'Try Again', '100 Points'];
+      ? draftCampaign.gamifiedConfig.prizePool.split(",").map((p) => p.trim())
+      : [
+          "Free Croissant",
+          "50 Points",
+          "10% Off Coupon",
+          "Free Coffee",
+          "Try Again",
+          "100 Points",
+        ];
 
     const prizeIndex = Math.floor(Math.random() * prizes.length);
     const sectorDegree = 360 / prizes.length;
     // Align wheel so that pointer at top (90 deg relative to conic start at 0 deg) matches prizeIndex
-    const targetDeg = 1800 + (360 - (prizeIndex * sectorDegree)) - (sectorDegree / 2);
+    const targetDeg =
+      1800 + (360 - prizeIndex * sectorDegree) - sectorDegree / 2;
 
     setSpinDeg(targetDeg);
     setIsSpinning(true);
@@ -158,20 +238,25 @@ export default function SegmentsPage() {
         setGamifyLoading(true);
         try {
           const targetCustId = draftCampaign.customerIds[0];
-          const updateRes = await fetch(`${BACKEND_URL}/api/loyalty/gamify-event`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              customerId: targetCustId,
-              eventType: 'SPIN_WHEEL'
-            })
-          });
+          const updateRes = await fetch(
+            `${BACKEND_URL}/api/loyalty/gamify-event`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                customerId: targetCustId,
+                eventType: "SPIN_WHEEL",
+              }),
+            },
+          );
           if (updateRes.ok) {
             const data = await updateRes.json();
-            setGamifySuccessMsg(`Successfully credited +50.0 loyalty points to target shopper profile! Total: ${data.currentPoints} pts`);
+            setGamifySuccessMsg(
+              `Successfully credited +50.0 loyalty points to target shopper profile! Total: ${data.currentPoints} pts`,
+            );
           }
         } catch (err) {
-          console.error('[Gamification Sync] Failed:', err);
+          console.error("[Gamification Sync] Failed:", err);
         } finally {
           setGamifyLoading(false);
         }
@@ -191,11 +276,41 @@ export default function SegmentsPage() {
   }, [isParsing, isAgenticMode]);
 
   const MOCK_CUSTOMERS_360 = [
-    { id: 'cust-1', name: 'Emma Smith', email: 'emma.smith@example.com', favoriteCategory: 'Coffee', totalSpends: 480.50 },
-    { id: 'cust-2', name: 'Liam Johnson', email: 'liam.johnson@example.com', favoriteCategory: 'Bakery', totalSpends: 90.00 },
-    { id: 'cust-3', name: 'Olivia Williams', email: 'olivia.williams@example.com', favoriteCategory: 'Apparel', totalSpends: 1250.00 },
-    { id: 'cust-4', name: 'Noah Brown', email: 'noah.brown@example.com', favoriteCategory: 'Coffee', totalSpends: 35.00 },
-    { id: 'cust-5', name: 'Ava Jones', email: 'ava.jones@example.com', favoriteCategory: 'Beauty', totalSpends: 680.00 }
+    {
+      id: "cust-1",
+      name: "Emma Smith",
+      email: "emma.smith@example.com",
+      favoriteCategory: "Coffee",
+      totalSpends: 480.5,
+    },
+    {
+      id: "cust-2",
+      name: "Liam Johnson",
+      email: "liam.johnson@example.com",
+      favoriteCategory: "Bakery",
+      totalSpends: 90.0,
+    },
+    {
+      id: "cust-3",
+      name: "Olivia Williams",
+      email: "olivia.williams@example.com",
+      favoriteCategory: "Apparel",
+      totalSpends: 1250.0,
+    },
+    {
+      id: "cust-4",
+      name: "Noah Brown",
+      email: "noah.brown@example.com",
+      favoriteCategory: "Coffee",
+      totalSpends: 35.0,
+    },
+    {
+      id: "cust-5",
+      name: "Ava Jones",
+      email: "ava.jones@example.com",
+      favoriteCategory: "Beauty",
+      totalSpends: 680.0,
+    },
   ];
 
   // Execute standard customer segment parser
@@ -211,50 +326,60 @@ export default function SegmentsPage() {
 
     try {
       const response = await fetch(`${BACKEND_URL}/api/ai/segment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ promptText: prompt }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to parse prompt.');
+        throw new Error(data.error || "Failed to parse prompt.");
       }
 
       setSegmentData({
         audienceSize: data.audienceSize,
         customers: data.customers || [],
-        explanation: data.explanation || '',
-        generatedQuery: data.generatedQuery || '',
+        explanation: data.explanation || "",
+        generatedQuery: data.generatedQuery || "",
       });
-
     } catch (err: any) {
-      console.warn('AI segment parser failed, running offline simulation fallback:', err);
-      
+      console.warn(
+        "AI segment parser failed, running offline simulation fallback:",
+        err,
+      );
+
       const lower = prompt.toLowerCase();
       let matchedCustomers = MOCK_CUSTOMERS_360;
-      let category = 'All Categories';
-      
-      if (lower.includes('coffee')) {
-        matchedCustomers = MOCK_CUSTOMERS_360.filter(c => c.favoriteCategory === 'Coffee');
-        category = 'Coffee';
-      } else if (lower.includes('bakery')) {
-        matchedCustomers = MOCK_CUSTOMERS_360.filter(c => c.favoriteCategory === 'Bakery');
-        category = 'Bakery';
-      } else if (lower.includes('apparel')) {
-        matchedCustomers = MOCK_CUSTOMERS_360.filter(c => c.favoriteCategory === 'Apparel');
-        category = 'Apparel';
-      } else if (lower.includes('vip') || lower.includes('spend')) {
-        matchedCustomers = MOCK_CUSTOMERS_360.filter(c => c.totalSpends > 400);
-        category = 'High Spenders';
+      let category = "All Categories";
+
+      if (lower.includes("coffee")) {
+        matchedCustomers = MOCK_CUSTOMERS_360.filter(
+          (c) => c.favoriteCategory === "Coffee",
+        );
+        category = "Coffee";
+      } else if (lower.includes("bakery")) {
+        matchedCustomers = MOCK_CUSTOMERS_360.filter(
+          (c) => c.favoriteCategory === "Bakery",
+        );
+        category = "Bakery";
+      } else if (lower.includes("apparel")) {
+        matchedCustomers = MOCK_CUSTOMERS_360.filter(
+          (c) => c.favoriteCategory === "Apparel",
+        );
+        category = "Apparel";
+      } else if (lower.includes("vip") || lower.includes("spend")) {
+        matchedCustomers = MOCK_CUSTOMERS_360.filter(
+          (c) => c.totalSpends > 400,
+        );
+        category = "High Spenders";
       }
 
       setSegmentData({
         audienceSize: matchedCustomers.length,
         customers: matchedCustomers,
         explanation: `[Offline Translation] Analyzed natural language query for category: "${category}". Translated to SQL query mapping target profiles.`,
-        generatedQuery: `SELECT * FROM "Customer" WHERE "favoriteCategory" = '${category}'`
+        generatedQuery: `SELECT * FROM "Customer" WHERE "favoriteCategory" = '${category}'`,
       });
     } finally {
       setIsParsing(false);
@@ -266,7 +391,7 @@ export default function SegmentsPage() {
     promptText: string,
     toneVal: string = selectedTone,
     incentiveVal: string = selectedIncentive,
-    channelVal: string = editChannel
+    channelVal: string = editChannel,
   ) => {
     if (!promptText.trim()) return;
 
@@ -279,41 +404,53 @@ export default function SegmentsPage() {
 
     try {
       const response = await fetch(`${BACKEND_URL}/api/ai/draft-campaign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           promptText,
           tone: toneVal,
           incentive: incentiveVal,
-          channelOverride: channelVal
+          channelOverride: channelVal,
         }),
       });
 
       const data: CampaignDraftData = await response.json();
 
       if (!response.ok) {
-        throw new Error((data as any).error || 'Failed to generate campaign draft.');
+        throw new Error(
+          (data as any).error || "Failed to generate campaign draft.",
+        );
       }
 
       setDraftCampaign(data);
       setEditCampaignName(data.campaign.name);
       setEditMessageTemplate(data.copywriteSuite.messageTemplate);
       setEditChannel(data.campaign.channel);
-
     } catch (err: any) {
-      console.warn('AI Campaign Draft failed, running offline simulation fallback:', err);
-      
+      console.warn(
+        "AI Campaign Draft failed, running offline simulation fallback:",
+        err,
+      );
+
       const lower = promptText.toLowerCase();
       let matchedPreset = CAMPAIGN_PRESETS[0]; // default to coffee win-back
-      
-      if (lower.includes('vip') || lower.includes('spend')) {
-        matchedPreset = CAMPAIGN_PRESETS[1];
-      } else if (lower.includes('bakery')) {
-        matchedPreset = CAMPAIGN_PRESETS[2];
+
+      if (lower.includes("vip") || lower.includes("spend")) {
+        matchedPreset = CAMPAIGN_PRESETS.find(p => p.id === "vip-spenders") || CAMPAIGN_PRESETS[0];
+      } else if (lower.includes("bakery")) {
+        matchedPreset = CAMPAIGN_PRESETS.find(p => p.id === "bakery-nudge") || CAMPAIGN_PRESETS[0];
+      } else if (lower.includes("skincare") || lower.includes("serum")) {
+        matchedPreset = CAMPAIGN_PRESETS.find(p => p.id === "skincare-refill") || CAMPAIGN_PRESETS[0];
+      } else if (lower.includes("sneaker")) {
+        matchedPreset = CAMPAIGN_PRESETS.find(p => p.id === "sneaker-drop") || CAMPAIGN_PRESETS[0];
+      } else if (lower.includes("clearance") || lower.includes("summer")) {
+        matchedPreset = CAMPAIGN_PRESETS.find(p => p.id === "apparel-clearance") || CAMPAIGN_PRESETS[0];
       }
 
-      const isCoffee = matchedPreset.id === 'coffee-90d';
-      const isVIP = matchedPreset.id === 'vip-spenders';
+      const isCoffee = matchedPreset.id === "coffee-90d";
+      const isVIP = matchedPreset.id === "vip-spenders";
+      const isSkincare = matchedPreset.id === "skincare-refill";
+      const isApparel = matchedPreset.category === "Retail & Apparel";
 
       const mockDraft: CampaignDraftData = {
         success: true,
@@ -321,36 +458,72 @@ export default function SegmentsPage() {
           id: `camp-mock-${Date.now()}`,
           name: matchedPreset.title,
           promptText: promptText,
-          messageTemplate: isCoffee ? 'Hey {{name}}! We notice you haven\'t stopped by for coffee in a while. ☕ Claim a free cookie using code COMEBACK20 on your next order!' :
-                           isVIP ? 'Dear {{name}}, as a valued VIP member, we would love to offer you a free gift. 🎁 Use code VIPGIFT.' :
-                           'Hey {{name}}! Fresh bakery treats are waiting for you. 🥐 Use code BAKERYFREE!',
+          messageTemplate: isCoffee
+            ? "Hey {{name}}! We notice you haven't stopped by for coffee in a while. ☕ Claim a free cookie using code COMEBACK20 on your next order!"
+            : isVIP
+              ? "Dear {{name}}, as a valued VIP member, we would love to offer you a free gift. 🎁 Use code VIPGIFT."
+              : isSkincare
+              ? "Hi {{name}}! It's time to glow up ✨ Your favorite serum might be running low. Restock now with code GLOWUP10."
+              : isApparel
+              ? "Hey {{name}}, get ready to step up your style! 🛍️ Exclusive early access to our new drop is yours."
+              : "Hey {{name}}! Fresh bakery treats are waiting for you. 🥐 Use code BAKERYFREE!",
           channel: matchedPreset.channel,
-          status: 'DRAFT'
+          status: "DRAFT",
         },
         customerCount: isCoffee ? 2 : isVIP ? 2 : 1,
-        customerIds: isCoffee ? ['cust-1', 'cust-4'] : isVIP ? ['cust-1', 'cust-3'] : ['cust-2'],
+        customerIds: isCoffee
+          ? ["cust-1", "cust-4"]
+          : isVIP
+            ? ["cust-1", "cust-3"]
+            : ["cust-2"],
         explanation: `[Offline Strategy] Formulated promotional stream targeting segment with a high likelihood of conversion. Attached gamified loyalty milestones to incentivize action.`,
         copywriteSuite: {
-          notificationHeader: isCoffee ? '☕ We Miss You!' : isVIP ? '👑 VIP Surprise Package' : '🥐 Bakery Nudge',
-          messageTemplate: isCoffee ? 'Hey {{name}}! We notice you haven\'t stopped by for coffee in a while. ☕ Claim a free cookie using code COMEBACK20 on your next order!' :
-                           isVIP ? 'Dear {{name}}, as a valued VIP member, we would love to offer you a free gift. 🎁 Use code VIPGIFT.' :
-                           'Hey {{name}}! Fresh bakery treats are waiting for you. 🥐 Use code BAKERYFREE!',
-          creativeQuote: isCoffee ? '"Coffee is a language in itself." — Jackie Chan' :
-                         isVIP ? '"Luxury is in each detail." — Hubert de Givenchy' :
-                         '"Life is uncertain. Eat dessert first." — Ernestine Ulmer'
+          notificationHeader: isCoffee
+            ? "☕ We Miss You!"
+            : isVIP
+              ? "👑 VIP Surprise Package"
+              : isSkincare
+              ? "✨ Time to Restock"
+              : isApparel
+              ? "🛍️ Exclusive Style Drop"
+              : "🥐 Bakery Nudge",
+          messageTemplate: isCoffee
+            ? "Hey {{name}}! We notice you haven't stopped by for coffee in a while. ☕ Claim a free cookie using code COMEBACK20 on your next order!"
+            : isVIP
+              ? "Dear {{name}}, as a valued VIP member, we would love to offer you a free gift. 🎁 Use code VIPGIFT."
+              : isSkincare
+              ? "Hi {{name}}! It's time to glow up ✨ Your favorite serum might be running low. Restock now with code GLOWUP10."
+              : isApparel
+              ? "Hey {{name}}, get ready to step up your style! 🛍️ Exclusive early access to our new drop is yours."
+              : "Hey {{name}}! Fresh bakery treats are waiting for you. 🥐 Use code BAKERYFREE!",
+          creativeQuote: isCoffee
+            ? '"Coffee is a language in itself." — Jackie Chan'
+            : isVIP
+              ? '"Luxury is in each detail." — Hubert de Givenchy'
+              : isSkincare
+              ? '"Invest in your skin. It is going to represent you for a very long time." — Linden Tyler'
+              : isApparel
+              ? '"Style is a way to say who you are without having to speak." — Rachel Zoe'
+              : '"Life is uncertain. Eat dessert first." — Ernestine Ulmer',
         },
         bannerConfig: {
-          themeGradient: isCoffee ? 'from-amber-500 to-orange-600' :
-                         isVIP ? 'from-yellow-600 to-amber-900' :
-                         'from-orange-400 to-rose-600',
+          themeGradient: matchedPreset.gradient,
           stickerEmoji: matchedPreset.emoji,
-          primaryCallToAction: isCoffee ? 'Order Coffee Now' : isVIP ? 'Claim VIP Gift' : 'View Bakery treats'
+          primaryCallToAction: isCoffee
+            ? "Order Coffee Now"
+            : isVIP
+              ? "Claim VIP Gift"
+              : isSkincare
+              ? "Restock Serum"
+              : isApparel
+              ? "Shop Now"
+              : "View Bakery treats",
         },
         gamifiedConfig: {
-          gameType: 'SPIN_WHEEL',
-          prizePool: 'Free Donut, 50 Pts, 15% Off, Free Coffee, 10 Pts',
-          milestoneTriggerPoints: 100
-        }
+          gameType: "SPIN_WHEEL",
+          prizePool: "Free Donut, 50 Pts, 15% Off, Free Coffee, 10 Pts",
+          milestoneTriggerPoints: 100,
+        },
       };
 
       if (channelVal) {
@@ -358,22 +531,47 @@ export default function SegmentsPage() {
       }
       if (toneVal) {
         const toneLower = toneVal.toLowerCase();
-        if (toneLower.includes('urgent') || toneLower.includes('fomo')) {
-          mockDraft.copywriteSuite.notificationHeader = '🚨 URGENT: Don\'t miss out!';
-          mockDraft.copywriteSuite.messageTemplate = mockDraft.copywriteSuite.messageTemplate.replace(/Hey/i, 'HURRY! Time is running out. Hey');
-        } else if (toneLower.includes('premium') || toneLower.includes('luxury')) {
-          mockDraft.copywriteSuite.notificationHeader = '💎 An Exclusive Invitation';
-          mockDraft.copywriteSuite.messageTemplate = mockDraft.copywriteSuite.messageTemplate.replace(/Hey/i, 'Greetings');
+        if (toneLower.includes("urgent") || toneLower.includes("fomo")) {
+          mockDraft.copywriteSuite.notificationHeader =
+            "🚨 URGENT: Don't miss out!";
+          mockDraft.copywriteSuite.messageTemplate =
+            mockDraft.copywriteSuite.messageTemplate.replace(
+              /Hey/i,
+              "HURRY! Time is running out. Hey",
+            );
+        } else if (
+          toneLower.includes("premium") ||
+          toneLower.includes("luxury")
+        ) {
+          mockDraft.copywriteSuite.notificationHeader =
+            "💎 An Exclusive Invitation";
+          mockDraft.copywriteSuite.messageTemplate =
+            mockDraft.copywriteSuite.messageTemplate.replace(
+              /Hey/i,
+              "Greetings",
+            );
         }
       }
       if (incentiveVal) {
         const inc = incentiveVal.toUpperCase();
-        if (inc.includes('PERCENTAGE')) {
-          mockDraft.copywriteSuite.messageTemplate = mockDraft.copywriteSuite.messageTemplate.replace(/\d+%\s*off|flat\s*\$\d+|loyalty|flat\s*\$\d+\s*off/i, '20% off');
-        } else if (inc.includes('FLAT')) {
-          mockDraft.copywriteSuite.messageTemplate = mockDraft.copywriteSuite.messageTemplate.replace(/\d+%\s*off|flat\s*\$\d+|loyalty|flat\s*\$\d+\s*off/i, 'flat $10');
-        } else if (inc.includes('LOYALTY')) {
-          mockDraft.copywriteSuite.messageTemplate = mockDraft.copywriteSuite.messageTemplate.replace(/\d+%\s*off|flat\s*\$\d+|loyalty|flat\s*\$\d+\s*off/i, '3x loyalty points');
+        if (inc.includes("PERCENTAGE")) {
+          mockDraft.copywriteSuite.messageTemplate =
+            mockDraft.copywriteSuite.messageTemplate.replace(
+              /\d+%\s*off|flat\s*\$\d+|loyalty|flat\s*\$\d+\s*off/i,
+              "20% off",
+            );
+        } else if (inc.includes("FLAT")) {
+          mockDraft.copywriteSuite.messageTemplate =
+            mockDraft.copywriteSuite.messageTemplate.replace(
+              /\d+%\s*off|flat\s*\$\d+|loyalty|flat\s*\$\d+\s*off/i,
+              "flat $10",
+            );
+        } else if (inc.includes("LOYALTY")) {
+          mockDraft.copywriteSuite.messageTemplate =
+            mockDraft.copywriteSuite.messageTemplate.replace(
+              /\d+%\s*off|flat\s*\$\d+|loyalty|flat\s*\$\d+\s*off/i,
+              "3x loyalty points",
+            );
         }
       }
 
@@ -393,105 +591,135 @@ export default function SegmentsPage() {
     setIsBroadcasting(true);
     setError(null);
 
-    const compiledTemplate = getCompiledMessage(editMessageTemplate, selectedTone, selectedIncentive);
+    const compiledTemplate = getCompiledMessage(
+      editMessageTemplate,
+      selectedTone,
+      selectedIncentive,
+    );
 
     try {
       // Step 1: Update Campaign with edited name, copy, channel and status='PENDING'
-      const updateRes = await fetch(`${BACKEND_URL}/api/campaigns/${draftCampaign.campaign.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: editCampaignName,
-          messageTemplate: compiledTemplate,
-          channel: editChannel,
-          status: 'PENDING'
-        }),
-      });
+      const updateRes = await fetch(
+        `${BACKEND_URL}/api/campaigns/${draftCampaign.campaign.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: editCampaignName,
+            messageTemplate: compiledTemplate,
+            channel: editChannel,
+            status: "PENDING",
+          }),
+        },
+      );
 
       const updateData = await updateRes.json();
       if (!updateRes.ok) {
-        throw new Error(updateData.error || 'Failed to save updated campaign details.');
+        throw new Error(
+          updateData.error || "Failed to save updated campaign details.",
+        );
       }
 
       // Step 2: Dispatch Campaign broadcast using existing send endpoint
       const sendRes = await fetch(`${BACKEND_URL}/api/campaigns/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           campaignId: draftCampaign.campaign.id,
-          customerIds: draftCampaign.customerIds
+          customerIds: draftCampaign.customerIds,
         }),
       });
 
       const sendData = await sendRes.json();
       if (!sendRes.ok) {
-        throw new Error(sendData.error || 'Failed to broadcast campaign.');
+        throw new Error(sendData.error || "Failed to broadcast campaign.");
       }
 
       setBroadcastSuccess(true);
-      
-      // Redirect to Analytics Monitor
-      setTimeout(() => {
-        router.push('/analytics');
-      }, 1500);
 
-    } catch (err: any) {
-      console.warn('Network broadcast failed, running offline simulation fallback:', err);
-      setBroadcastSuccess(true);
-      
       // Redirect to Analytics Monitor
       setTimeout(() => {
-        router.push('/analytics');
+        router.push("/analytics");
+      }, 1500);
+    } catch (err: any) {
+      console.warn(
+        "Network broadcast failed, running offline simulation fallback:",
+        err,
+      );
+      setBroadcastSuccess(true);
+
+      // Redirect to Analytics Monitor
+      setTimeout(() => {
+        router.push("/analytics");
       }, 1500);
     }
   };
 
   const getCompiledHeader = (baseHeader: string, tone: string) => {
-    if (!baseHeader) return '';
+    if (!baseHeader) return "";
     const toneUpper = tone.toUpperCase();
-    if (toneUpper === 'URGENT') {
-      return '🚨 URGENT: Don\'t miss out!';
-    } else if (toneUpper === 'PREMIUM') {
-      return '💎 An Exclusive Invitation';
+    if (toneUpper === "URGENT") {
+      return "🚨 URGENT: Don't miss out!";
+    } else if (toneUpper === "PREMIUM") {
+      return "💎 An Exclusive Invitation";
     }
     return baseHeader;
   };
 
-  const getCompiledMessage = (templateText: string, tone: string, incentive: string) => {
-    if (!templateText) return '';
+  const getCompiledMessage = (
+    templateText: string,
+    tone: string,
+    incentive: string,
+  ) => {
+    if (!templateText) return "";
     let text = templateText;
-    
+
     // Apply Tone overrides:
     const toneUpper = tone.toUpperCase();
-    if (toneUpper === 'URGENT') {
+    if (toneUpper === "URGENT") {
       if (!text.match(/HURRY!/i)) {
-        text = text.replace(/^(Hey|Greetings)/i, 'HURRY! Time is running out. Hey');
+        text = text.replace(
+          /^(Hey|Greetings)/i,
+          "HURRY! Time is running out. Hey",
+        );
       }
-    } else if (toneUpper === 'PREMIUM') {
-      text = text.replace(/^(Hey|HURRY! Time is running out. Hey)/i, 'Greetings');
+    } else if (toneUpper === "PREMIUM") {
+      text = text.replace(
+        /^(Hey|HURRY! Time is running out. Hey)/i,
+        "Greetings",
+      );
     }
-    
+
     // Apply Incentive overrides:
     const incUpper = incentive.toUpperCase();
-    if (incUpper === 'PERCENTAGE') {
-      text = text.replace(/\d+%\s*off|flat\s*\$\d+|loyalty|flat\s*\$\d+\s*off/i, '20% off');
-    } else if (incUpper === 'FLAT') {
-      text = text.replace(/\d+%\s*off|flat\s*\$\d+|loyalty|flat\s*\$\d+\s*off/i, 'flat $10');
-    } else if (incUpper === 'LOYALTY') {
-      text = text.replace(/\d+%\s*off|flat\s*\$\d+|loyalty|flat\s*\$\d+\s*off/i, '3x loyalty points');
+    if (incUpper === "PERCENTAGE") {
+      text = text.replace(
+        /\d+%\s*off|flat\s*\$\d+|loyalty|flat\s*\$\d+\s*off/i,
+        "20% off",
+      );
+    } else if (incUpper === "FLAT") {
+      text = text.replace(
+        /\d+%\s*off|flat\s*\$\d+|loyalty|flat\s*\$\d+\s*off/i,
+        "flat $10",
+      );
+    } else if (incUpper === "LOYALTY") {
+      text = text.replace(
+        /\d+%\s*off|flat\s*\$\d+|loyalty|flat\s*\$\d+\s*off/i,
+        "3x loyalty points",
+      );
     }
-    
+
     return text;
   };
 
   // Helper to interpolate vars in notification preview
   const interpolatePreview = (templateText: string) => {
-    if (!templateText) return '';
+    if (!templateText) return "";
     return templateText
-      .replace(/\{\{\s*name\s*\}\}/gi, 'Alice')
-      .replace(/\{\{\s*last_purchased_item\s*\}\}/gi, 'Coffee')
-      .replace(/\{\{\s*favorite_category\s*\}\}/gi, 'Coffee')
-      .replace(/\{\{\s*total_loyalty_points\s*\}\}/gi, '150');
+      .replace(/\{\{\s*name\s*\}\}/gi, "Alice")
+      .replace(/\{\{\s*last_purchased_item\s*\}\}/gi, "Coffee")
+      .replace(/\{\{\s*favorite_category\s*\}\}/gi, "Coffee")
+      .replace(/\{\{\s*total_loyalty_points\s*\}\}/gi, "150");
   };
 
   const handleChipClick = (chipPrompt: string) => {
@@ -505,15 +733,15 @@ export default function SegmentsPage() {
       audienceSize: segmentData.audienceSize,
       customers: segmentData.customers,
       query: prompt,
-      explanation: segmentData.explanation
+      explanation: segmentData.explanation,
     });
-    router.push('/campaigns');
+    router.push("/campaigns");
   };
 
   const handleResetWorkspace = () => {
     setDraftCampaign(null);
     setSegmentData(null);
-    setPrompt('');
+    setPrompt("");
     setError(null);
   };
 
@@ -527,11 +755,16 @@ export default function SegmentsPage() {
             AI Marketing Agent Workspace
           </h1>
           <p className="text-sm text-neutral-500 max-w-xl font-medium">
-            Type target requests or choose from one of the active templates below to instantly draft copy and launch campaigns.
+            Type target requests or choose from one of the active templates
+            below to instantly draft copy and launch campaigns.
           </p>
         </div>
         {draftCampaign && (
-          <Button onClick={handleResetWorkspace} variant="secondary" className="space-x-2 shrink-0 border border-border">
+          <Button
+            onClick={handleResetWorkspace}
+            variant="secondary"
+            className="space-x-2 shrink-0 border border-border"
+          >
             <RefreshCw className="w-4 h-4" />
             <span>Reset Workspace</span>
           </Button>
@@ -564,7 +797,7 @@ export default function SegmentsPage() {
                 <Layers className="w-4 h-4 text-neutral-500" />
                 <span>Search Segment Only</span>
               </button>
-              
+
               <button
                 type="button"
                 onClick={() => handleDraftCampaign(prompt)}
@@ -578,73 +811,88 @@ export default function SegmentsPage() {
           </form>
 
           {/* Quick Action Chips */}
-          <div className="space-y-2 pt-2 border-t border-border/60">
-            <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider block">Quick Action Chips</span>
+          <div className="space-y-3 pt-4 border-t border-border/60">
+            <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider block">
+              Quick Action Chips
+            </span>
             <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => handleChipClick("Bring back coffee lovers missing for 90 days (Witty & Emotional)")}
-                disabled={isParsing}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary hover:bg-purple-100 dark:hover:bg-purple-950/30 hover:text-purple-600 rounded-full text-xs font-semibold border border-border transition text-neutral-600 dark:text-neutral-300"
-              >
-                <Coffee className="w-3.5 h-3.5 text-amber-600 dark:text-amber-500" />
-                <span>☕ Coffee Win-Back (90d)</span>
-              </button>
-              
-              <button
-                onClick={() => handleChipClick("Surprise high-spenders over $500 with a luxury VIP gift")}
-                disabled={isParsing}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary hover:bg-yellow-100 dark:hover:bg-yellow-950/30 hover:text-yellow-600 rounded-full text-xs font-semibold border border-border transition text-neutral-600 dark:text-neutral-300"
-              >
-                <Crown className="w-3.5 h-3.5 text-yellow-500" />
-                <span>👑 Luxury VIP Gift (+$500)</span>
-              </button>
-
-              <button
-                onClick={() => handleChipClick("Nudge bakery buyers who haven't ordered this week (Hungry mode)")}
-                disabled={isParsing}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary hover:bg-orange-100 dark:hover:bg-orange-950/30 hover:text-orange-600 rounded-full text-xs font-semibold border border-border transition text-neutral-600 dark:text-neutral-300"
-              >
-                <Utensils className="w-3.5 h-3.5 text-orange-500" />
-                <span>🥐 Bakery Nudge (Hungry Mode)</span>
-              </button>
+              {CAMPAIGN_PRESETS.slice(0, 4).map((preset) => (
+                <button
+                  key={`chip-${preset.id}`}
+                  onClick={() => handleChipClick(preset.promptText)}
+                  disabled={isParsing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary hover:bg-purple-100 dark:hover:bg-purple-950/30 hover:text-purple-600 rounded-full text-xs font-semibold border border-border transition text-neutral-600 dark:text-neutral-300"
+                >
+                  <span className="text-sm">{preset.emoji}</span>
+                  <span>{preset.title}</span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* Campaign Presets Gallery Section (Always Present by Default) */}
+      {/* Campaign Presets Gallery Section */}
       {!draftCampaign && !isParsing && (
-        <div className="space-y-4">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
-            <Layers className="w-4 h-4 text-purple-500" />
-            Featured Campaign Presets
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {CAMPAIGN_PRESETS.map((preset) => (
-              <Card 
-                key={preset.id} 
-                className="hover:border-purple-500/50 hover:shadow-md transition duration-300 flex flex-col justify-between"
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
+              <Layers className="w-5 h-5 text-purple-500" />
+              Featured Campaign Presets
+            </h2>
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar scroll-smooth">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-300 ${
+                    selectedCategory === cat
+                      ? "bg-purple-600 text-white shadow-md shadow-purple-600/20"
+                      : "bg-secondary text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-800 border border-border/40"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {CAMPAIGN_PRESETS.filter((p) => selectedCategory === "All" || p.category === selectedCategory).map((preset) => (
+              <Card
+                key={preset.id}
+                className="group relative overflow-hidden hover:shadow-2xl transition-all duration-500 flex flex-col justify-between border-border hover:border-purple-500/50 bg-card/60 backdrop-blur-sm"
               >
-                <CardHeader className="pb-2">
+                {/* Decorative Background Gradient */}
+                <div
+                  className={`absolute -right-20 -top-20 w-48 h-48 bg-gradient-to-br ${preset.gradient} rounded-full blur-[70px] opacity-20 group-hover:opacity-40 transition-opacity duration-500 pointer-events-none`}
+                />
+                
+                <CardHeader className="pb-2 relative z-10">
                   <div className="flex justify-between items-start">
-                    <span className="text-3xl select-none">{preset.emoji}</span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-secondary uppercase text-neutral-500 tracking-wider">
+                    <span className="text-4xl select-none transform group-hover:scale-110 transition-transform duration-300">
+                      {preset.emoji}
+                    </span>
+                    <span className="px-2.5 py-1 rounded-md text-[9px] font-bold bg-secondary/80 backdrop-blur-sm uppercase text-neutral-500 tracking-wider shadow-sm border border-border/40">
                       {preset.channel}
                     </span>
                   </div>
-                  <CardTitle className="text-sm font-semibold mt-2">{preset.title}</CardTitle>
-                  <CardDescription className="text-xs mt-1 leading-relaxed">
+                  <CardTitle className="text-base font-bold mt-4 text-foreground group-hover:text-purple-500 transition-colors">
+                    {preset.title}
+                  </CardTitle>
+                  <CardDescription className="text-xs mt-1.5 leading-relaxed font-medium">
                     {preset.description}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="pt-2">
-                  <Button 
+                
+                <CardContent className="pt-4 relative z-10 mt-auto">
+                  <Button
                     onClick={() => handleChipClick(preset.promptText)}
-                    className="w-full space-x-1.5 text-xs font-semibold"
+                    className="w-full space-x-2 text-xs font-bold bg-secondary/50 hover:bg-purple-600 hover:text-white border-none transition-all duration-300"
                     variant="outline"
                   >
-                    <Zap className="w-3 h-3 text-purple-500" />
-                    <span>Activate Workspace Preset</span>
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>Activate Preset</span>
                   </Button>
                 </CardContent>
               </Card>
@@ -667,9 +915,13 @@ export default function SegmentsPage() {
           <Loader2 className="w-10 h-10 animate-spin text-purple-600" />
           <div className="space-y-1 text-center">
             <p className="text-foreground text-base font-semibold">
-              {isAgenticMode ? LOADING_STEPS[loadingStep] : "Analyzing database fields..."}
+              {isAgenticMode
+                ? LOADING_STEPS[loadingStep]
+                : "Analyzing database fields..."}
             </p>
-            <p className="text-xs text-neutral-500">Preparing segments and personalized deliverables.</p>
+            <p className="text-xs text-neutral-500">
+              Preparing segments and personalized deliverables.
+            </p>
           </div>
         </div>
       )}
@@ -677,7 +929,6 @@ export default function SegmentsPage() {
       {/* AI Draft Workspace & Ad Canvas Panel */}
       {draftCampaign && !isParsing && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-scaleUp">
-          
           {/* Left Column: Review & Execution Panel - Takes 7 cols */}
           <div className="lg:col-span-7 space-y-6">
             <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
@@ -689,7 +940,9 @@ export default function SegmentsPage() {
             <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-2xl text-purple-900 dark:text-purple-300 text-sm font-medium flex items-start gap-3 shadow-inner">
               <Bot className="w-5 h-5 text-purple-500 mt-0.5 shrink-0" />
               <div className="space-y-1">
-                <span className="text-xs font-bold uppercase tracking-wider text-purple-600 block">Agent Campaign Strategy</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-purple-600 block">
+                  Agent Campaign Strategy
+                </span>
                 <p className="leading-relaxed">{draftCampaign.explanation}</p>
               </div>
             </div>
@@ -704,12 +957,16 @@ export default function SegmentsPage() {
                     {draftCampaign.customerCount} customers targeted
                   </span>
                 </div>
-                <CardDescription>Fine-tune the draft details generated by the growth assistant</CardDescription>
+                <CardDescription>
+                  Fine-tune the draft details generated by the growth assistant
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Campaign Name */}
                 <div className="space-y-1">
-                  <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider">Campaign Name</label>
+                  <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider">
+                    Campaign Name
+                  </label>
                   <input
                     type="text"
                     value={editCampaignName}
@@ -723,7 +980,9 @@ export default function SegmentsPage() {
 
                 {/* Copywriting Tone Selector */}
                 <div className="space-y-1">
-                  <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider">Copywriting Tone</label>
+                  <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider">
+                    Copywriting Tone
+                  </label>
                   <select
                     value={selectedTone}
                     onChange={(e) => setSelectedTone(e.target.value)}
@@ -738,14 +997,18 @@ export default function SegmentsPage() {
 
                 {/* Target Incentives Toggle */}
                 <div className="space-y-1">
-                  <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider">Campaign Incentive</label>
+                  <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider">
+                    Campaign Incentive
+                  </label>
                   <select
                     value={selectedIncentive}
                     onChange={(e) => setSelectedIncentive(e.target.value)}
                     className="w-full bg-secondary/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-purple-500"
                     disabled={isBroadcasting}
                   >
-                    <option value="PERCENTAGE">Percentage Discount (20% Off)</option>
+                    <option value="PERCENTAGE">
+                      Percentage Discount (20% Off)
+                    </option>
                     <option value="FLAT">Flat Gift Card ($10 Flat)</option>
                     <option value="LOYALTY">Loyalty Points (3x Points)</option>
                   </select>
@@ -753,7 +1016,9 @@ export default function SegmentsPage() {
 
                 {/* Channel Override */}
                 <div className="space-y-1">
-                  <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider">Channel Override</label>
+                  <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider">
+                    Channel Override
+                  </label>
                   <select
                     value={editChannel}
                     onChange={(e) => setEditChannel(e.target.value)}
@@ -770,8 +1035,12 @@ export default function SegmentsPage() {
                 {/* Message Template Textarea */}
                 <div className="space-y-1">
                   <div className="flex justify-between items-center">
-                    <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider">Personalized Copywriter Template</label>
-                    <span className="text-[10px] text-purple-600 font-semibold uppercase tracking-wider animate-pulse">Growth Mode</span>
+                    <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider">
+                      Personalized Copywriter Template
+                    </label>
+                    <span className="text-[10px] text-purple-600 font-semibold uppercase tracking-wider animate-pulse">
+                      Growth Mode
+                    </span>
                   </div>
                   <textarea
                     value={editMessageTemplate}
@@ -797,7 +1066,11 @@ export default function SegmentsPage() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => handleDraftCampaign(prompt || draftCampaign.campaign.promptText || '')}
+                    onClick={() =>
+                      handleDraftCampaign(
+                        prompt || draftCampaign.campaign.promptText || "",
+                      )
+                    }
                     disabled={isParsing}
                     className="space-x-1"
                   >
@@ -805,9 +1078,14 @@ export default function SegmentsPage() {
                     <span>Regenerate with AI</span>
                   </Button>
 
-                  <Button 
-                    onClick={handleApproveAndBroadcast} 
-                    disabled={isBroadcasting || broadcastSuccess || !editCampaignName.trim() || !editMessageTemplate.trim()}
+                  <Button
+                    onClick={handleApproveAndBroadcast}
+                    disabled={
+                      isBroadcasting ||
+                      broadcastSuccess ||
+                      !editCampaignName.trim() ||
+                      !editMessageTemplate.trim()
+                    }
                     className="space-x-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold shadow-md shadow-purple-600/10"
                   >
                     {isBroadcasting ? (
@@ -828,10 +1106,8 @@ export default function SegmentsPage() {
                     )}
                   </Button>
                 </div>
-
               </CardContent>
             </Card>
-
           </div>
 
           {/* Right Column: The Ad Canvas (Rich Media Preview) - Takes 5 cols */}
@@ -850,33 +1126,51 @@ export default function SegmentsPage() {
 
               {/* Date & Clock */}
               <div className="text-center text-white/90 space-y-0.5 select-none mb-10">
-                <p className="text-[10px] uppercase font-bold tracking-widest text-neutral-400">Tuesday, June 9</p>
-                <h2 className="text-4xl font-light font-sans tracking-tight">11:51</h2>
+                <p className="text-[10px] uppercase font-bold tracking-widest text-neutral-400">
+                  Tuesday, June 9
+                </p>
+                <h2 className="text-4xl font-light font-sans tracking-tight">
+                  11:51
+                </h2>
               </div>
 
               {/* Glassmorphic Notification bubble */}
               <div className="w-full bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl p-3 shadow-lg select-none hover:bg-white/15 transition duration-200">
                 <div className="flex items-center justify-between text-[10px] text-neutral-300 font-bold mb-1.5">
                   <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 rounded-md bg-purple-500 flex items-center justify-center text-[7px] text-white">X</div>
+                    <div className="w-3 h-3 rounded-md bg-purple-500 flex items-center justify-center text-[7px] text-white">
+                      X
+                    </div>
                     <span>{editChannel} NOTIFICATION</span>
                   </div>
                   <span>now</span>
                 </div>
                 <h4 className="text-xs font-bold text-white mb-0.5 line-clamp-1">
-                  {getCompiledHeader(draftCampaign.copywriteSuite.notificationHeader, selectedTone)}
+                  {getCompiledHeader(
+                    draftCampaign.copywriteSuite.notificationHeader,
+                    selectedTone,
+                  )}
                 </h4>
                 <p className="text-[10px] text-neutral-200 leading-snug line-clamp-3">
-                  {interpolatePreview(getCompiledMessage(editMessageTemplate, selectedTone, selectedIncentive))}
+                  {interpolatePreview(
+                    getCompiledMessage(
+                      editMessageTemplate,
+                      selectedTone,
+                      selectedIncentive,
+                    ),
+                  )}
                 </p>
               </div>
             </div>
 
             {/* Rich Media Ad Banner Card */}
             <div className="w-full max-w-[320px] mx-auto space-y-2">
-              <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider block text-center">Rich Card Banner Ad</span>
-              <div className={`w-full rounded-2xl p-6 text-white bg-gradient-to-br ${draftCampaign.bannerConfig.themeGradient} shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[220px] hover:shadow-2xl transition duration-300 group`}>
-                
+              <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider block text-center">
+                Rich Card Banner Ad
+              </span>
+              <div
+                className={`w-full rounded-2xl p-6 text-white bg-gradient-to-br ${draftCampaign.bannerConfig.themeGradient} shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[220px] hover:shadow-2xl transition duration-300 group`}
+              >
                 {/* Floating Large Sticker Emoji */}
                 <div className="text-7xl absolute right-2 bottom-2 opacity-80 group-hover:scale-110 group-hover:rotate-12 transition duration-300 transform select-none">
                   {draftCampaign.bannerConfig.stickerEmoji}
@@ -896,69 +1190,7 @@ export default function SegmentsPage() {
               </div>
             </div>
 
-            {/* Gamified Promo Wheel Preview */}
-            {draftCampaign.gamifiedConfig && (
-              <div className="w-full max-w-[320px] mx-auto space-y-2 pt-4 border-t border-border">
-                <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider block text-center">
-                  Gamified Hook: {draftCampaign.gamifiedConfig.gameType}
-                </span>
-                
-                <div className="bg-secondary/35 border border-border rounded-2xl p-4 flex flex-col items-center space-y-4 shadow-sm relative overflow-hidden">
-                  
-                  {/* Wheel Pointer */}
-                  <div className="absolute top-[58px] z-20 w-4 h-6 bg-red-500" style={{ clipPath: 'polygon(50% 100%, 0 0, 100% 0)' }} />
 
-                  {/* Circular Wheel */}
-                  <div 
-                    className="w-36 h-36 rounded-full border-4 border-neutral-800 shadow-lg relative overflow-hidden flex items-center justify-center"
-                    style={{ 
-                      backgroundImage: 'conic-gradient(from 0deg, #f59e0b 0deg 60deg, #3b82f6 60deg 120deg, #10b981 120deg 180deg, #ef4444 180deg 240deg, #8b5cf6 240deg 300deg, #ec4899 300deg 360deg)',
-                      transform: `rotate(${spinDeg}deg)`,
-                      transition: isSpinning ? 'transform 3000ms cubic-bezier(0.25, 0.1, 0.25, 1)' : 'none'
-                    }}
-                  >
-                    {/* Inner pin */}
-                    <div className="w-8 h-8 rounded-full bg-neutral-800 border-2 border-white z-10 flex items-center justify-center text-[10px] text-white font-bold select-none">
-                      🎯
-                    </div>
-                  </div>
-
-                  {/* Spin Trigger Button */}
-                  <button 
-                    onClick={handleSpinWheel}
-                    disabled={isSpinning}
-                    className="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs rounded-full shadow-md disabled:opacity-50 transition duration-200"
-                  >
-                    {isSpinning ? 'Spinning...' : 'Spin simulated wheel'}
-                  </button>
-
-                  {/* Result Messages */}
-                  {spinResult && (
-                    <div className="text-center space-y-1 animate-scaleUp">
-                      <p className="text-xs font-bold text-foreground">
-                        🎉 You won: <span className="text-purple-600 dark:text-purple-400">{spinResult}</span>!
-                      </p>
-                      <p className="text-[10px] text-neutral-500 font-medium">
-                        Requires {draftCampaign.gamifiedConfig.milestoneTriggerPoints} loyalty points to claim.
-                      </p>
-                    </div>
-                  )}
-
-                  {gamifySuccessMsg && (
-                    <div className="p-2 bg-green-500/10 border border-green-500/20 rounded-lg text-[9px] text-green-600 font-semibold text-center mt-1 animate-fadeIn">
-                      {gamifySuccessMsg}
-                    </div>
-                  )}
-
-                  {gamifyLoading && (
-                    <div className="flex items-center gap-1 text-[9px] text-neutral-500">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      <span>Updating shopper points...</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -969,7 +1201,9 @@ export default function SegmentsPage() {
           <CardHeader className="flex flex-row items-center justify-between border-b border-border pb-4">
             <div>
               <CardTitle className="text-lg">Segment Results</CardTitle>
-              <CardDescription>Previewing matching customers in target group</CardDescription>
+              <CardDescription>
+                Previewing matching customers in target group
+              </CardDescription>
             </div>
             <div className="flex items-center space-x-2">
               <Users className="w-4 h-4 text-neutral-400" />
@@ -981,7 +1215,9 @@ export default function SegmentsPage() {
           <CardContent className="pt-6 space-y-6">
             {/* Logic explanation */}
             <div className="space-y-2">
-              <span className="text-xs text-neutral-500 uppercase tracking-wider block font-semibold">AI Translation Logic</span>
+              <span className="text-xs text-neutral-500 uppercase tracking-wider block font-semibold">
+                AI Translation Logic
+              </span>
               <p className="text-foreground text-sm bg-secondary p-3 rounded-lg border border-border font-medium">
                 {segmentData.explanation}
               </p>
@@ -989,7 +1225,9 @@ export default function SegmentsPage() {
 
             {/* Preview table */}
             <div className="space-y-2">
-              <span className="text-xs text-neutral-500 uppercase tracking-wider block font-semibold">Audience Sample List</span>
+              <span className="text-xs text-neutral-500 uppercase tracking-wider block font-semibold">
+                Audience Sample List
+              </span>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1001,7 +1239,9 @@ export default function SegmentsPage() {
                 <TableBody>
                   {segmentData.customers.slice(0, 8).map((customer) => (
                     <TableRow key={customer.id}>
-                      <TableCell className="font-semibold text-foreground">{customer.name}</TableCell>
+                      <TableCell className="font-semibold text-foreground">
+                        {customer.name}
+                      </TableCell>
                       <TableCell>{customer.email}</TableCell>
                       <TableCell className="text-green-600 dark:text-green-400 font-mono font-semibold">
                         ${customer.totalSpends.toFixed(2)}
