@@ -35,6 +35,84 @@ interface CustomerProfile {
   referred?: { id: string; name: string }[];
 }
 
+const MOCK_CUSTOMERS_360: CustomerProfile[] = [
+  {
+    id: 'cust-1',
+    name: 'Emma Smith',
+    email: 'emma.smith@example.com',
+    phone: '+14155552671',
+    totalSpends: 480.50,
+    loyaltyPoints: 120.5,
+    favoriteCategory: 'Coffee',
+    discountSeekingBehavior: 'HIGH',
+    preferredShoppingDay: 'Saturday',
+    referrerId: 'cust-3',
+  },
+  {
+    id: 'cust-2',
+    name: 'Liam Johnson',
+    email: 'liam.johnson@example.com',
+    phone: '+14155558192',
+    totalSpends: 90.00,
+    loyaltyPoints: 45.0,
+    favoriteCategory: 'Bakery',
+    discountSeekingBehavior: 'MID',
+    preferredShoppingDay: 'Sunday',
+    referrerId: null,
+  },
+  {
+    id: 'cust-3',
+    name: 'Olivia Williams',
+    email: 'olivia.williams@example.com',
+    phone: '+12025550143',
+    totalSpends: 1250.00,
+    loyaltyPoints: 310.2,
+    favoriteCategory: 'Apparel',
+    discountSeekingBehavior: 'LOW',
+    preferredShoppingDay: 'Friday',
+    referrerId: null,
+  },
+  {
+    id: 'cust-4',
+    name: 'Noah Brown',
+    email: 'noah.brown@example.com',
+    phone: '+13125559812',
+    totalSpends: 35.00,
+    loyaltyPoints: 15.0,
+    favoriteCategory: 'Coffee',
+    discountSeekingBehavior: 'HIGH',
+    preferredShoppingDay: 'Monday',
+    referrerId: 'cust-1',
+  },
+  {
+    id: 'cust-5',
+    name: 'Ava Jones',
+    email: 'ava.jones@example.com',
+    phone: '+16175550183',
+    totalSpends: 680.00,
+    loyaltyPoints: 240.0,
+    favoriteCategory: 'Beauty',
+    discountSeekingBehavior: 'MID',
+    preferredShoppingDay: 'Wednesday',
+    referrerId: null,
+  }
+];
+
+const MOCK_RFM = {
+  champions: {
+    count: 2,
+    customers: [MOCK_CUSTOMERS_360[0], MOCK_CUSTOMERS_360[2]]
+  },
+  atRisk: {
+    count: 1,
+    customers: [MOCK_CUSTOMERS_360[4]]
+  },
+  hibernating: {
+    count: 2,
+    customers: [MOCK_CUSTOMERS_360[1], MOCK_CUSTOMERS_360[3]]
+  }
+};
+
 export default function OverviewPage() {
   const router = useRouter();
   const { setSelectedAudience } = useSharedState();
@@ -65,9 +143,12 @@ export default function OverviewPage() {
             atRisk: data.atRisk,
             hibernating: data.hibernating
           });
+        } else {
+          setRfmData(MOCK_RFM);
         }
       } catch (e) {
-        console.error('Error fetching RFM data:', e);
+        console.warn('Error fetching RFM data, using offline fallback:', e);
+        setRfmData(MOCK_RFM);
       } finally {
         setRfmLoading(false);
       }
@@ -82,10 +163,13 @@ export default function OverviewPage() {
         const res = await fetch(`${BACKEND_URL}/api/customers?limit=6`);
         if (res.ok) {
           const json = await res.json();
-          setCustomers(json.data || []);
+          setCustomers(json.data || MOCK_CUSTOMERS_360);
+        } else {
+          setCustomers(MOCK_CUSTOMERS_360);
         }
       } catch (e) {
-        console.error('Error fetching customers:', e);
+        console.warn('Error fetching customers, using offline fallback:', e);
+        setCustomers(MOCK_CUSTOMERS_360);
       } finally {
         setCustomersLoading(false);
       }
