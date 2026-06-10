@@ -6,6 +6,7 @@ import { useSharedState } from '../../hooks/useSharedState';
 import { Send, Loader2, CheckCircle2, AlertCircle, ArrowLeft, ToggleLeft, ToggleRight, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
@@ -25,6 +26,7 @@ export default function CampaignsPage() {
   const [templateB, setTemplateB] = useState('Hey {{name}}! Enjoy 15% off our products today! Buy Now!');
   const [imageUrl, setImageUrl] = useState('');
   const [buttonsInput, setButtonsInput] = useState('Buy Now, Opt Out');
+  const [autoSplit, setAutoSplit] = useState(false);
   
   const [isLaunching, setIsLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +85,8 @@ export default function CampaignsPage() {
           messageTemplate: campaignTemplate,
           messageTemplateB: isABTest ? templateB : null,
           imageUrl: imageUrl.trim() || null,
-          buttons: buttonsArray.length > 0 ? buttonsArray : null
+          buttons: buttonsArray.length > 0 ? buttonsArray : null,
+          autoSplit: autoSplit
         }),
       });
 
@@ -199,16 +202,111 @@ export default function CampaignsPage() {
                 value={campaignChannel}
                 onChange={(e) => setCampaignChannel(e.target.value)}
                 className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-neutral-400 dark:focus:border-neutral-700"
-                disabled={isLaunching || success}
+                disabled={isLaunching || success || autoSplit}
               >
                 <option value="WHATSAPP">WhatsApp (Simulated Callback)</option>
                 <option value="EMAIL">Email (Simulated Callback)</option>
                 <option value="SMS">SMS (Simulated Callback)</option>
                 <option value="RCS">RCS (Simulated Callback)</option>
               </select>
+              {autoSplit && (
+                <span className="text-[10px] text-purple-500 block font-semibold">
+                  Provider channel is managed automatically by unified splitter constraints.
+                </span>
+              )}
+            </div>
+
+            {/* Unified Auto-Split Channel Checkbox */}
+            <div className="flex items-center space-x-2 pt-3 border-t border-border">
+              <input
+                type="checkbox"
+                id="autoSplit"
+                checked={autoSplit}
+                onChange={(e) => setAutoSplit(e.target.checked)}
+                className="w-4 h-4 rounded border-border text-purple-600 focus:ring-purple-500 bg-secondary"
+                disabled={isLaunching || success}
+              />
+              <label htmlFor="autoSplit" className="text-xs font-semibold text-foreground cursor-pointer select-none">
+                Enable Unified Multi-Channel Splitter (Branch dynamically by customer attributes)
+              </label>
             </div>
           </CardContent>
         </Card>
+
+        {/* Visual strategy splitter board diagram */}
+        {autoSplit && (
+          <Card className="shadow-lg border border-purple-500/25 bg-purple-500/5 animate-slideDown">
+            <CardHeader>
+              <CardTitle className="text-sm font-bold text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4" />
+                Unified Campaign Strategy Splitter Board
+              </CardTitle>
+              <CardDescription>
+                Visual mapping of how the target segment audience will branch dynamically inside the engine
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              
+              {/* Branch Diagram */}
+              <div className="flex flex-col space-y-3 relative before:absolute before:left-3.5 before:top-2 before:bottom-2 before:w-[2px] before:bg-purple-200 dark:before:bg-purple-950">
+                
+                {/* Branch 1 */}
+                <div className="flex items-start gap-4 relative z-10 pl-2">
+                  <div className="w-4 h-4 rounded-full bg-purple-500 border-2 border-white dark:border-neutral-900 mt-1 flex items-center justify-center text-[8px] text-white">1</div>
+                  <div className="p-3 bg-card border border-border rounded-xl flex-1 space-y-1">
+                    <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider block">Coffee Segment (Saturday Shoppers)</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-foreground">Route to WhatsApp channel</span>
+                      <Badge className="bg-green-500/10 text-green-600 border-none font-semibold text-[9px]">High Engagement</Badge>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Branch 2 */}
+                <div className="flex items-start gap-4 relative z-10 pl-2">
+                  <div className="w-4 h-4 rounded-full bg-purple-500 border-2 border-white dark:border-neutral-900 mt-1 flex items-center justify-center text-[8px] text-white">2</div>
+                  <div className="p-3 bg-card border border-border rounded-xl flex-1 space-y-1">
+                    <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider block">Bakery Segment</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-foreground">Route to RCS Rich Cards channel</span>
+                      <Badge className="bg-blue-500/10 text-blue-600 border-none font-semibold text-[9px]">Rich Media</Badge>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Branch 3 */}
+                <div className="flex items-start gap-4 relative z-10 pl-2">
+                  <div className="w-4 h-4 rounded-full bg-purple-500 border-2 border-white dark:border-neutral-900 mt-1 flex items-center justify-center text-[8px] text-white">3</div>
+                  <div className="p-3 bg-card border border-border rounded-xl flex-1 space-y-1">
+                    <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider block">Apparel / Beauty Segment</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-foreground">Route to Email Newsletters channel</span>
+                      <Badge className="bg-yellow-500/10 text-yellow-600 border-none font-semibold text-[9px]">Newsletter Template</Badge>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Branch 4 */}
+                <div className="flex items-start gap-4 relative z-10 pl-2">
+                  <div className="w-4 h-4 rounded-full bg-purple-500 border-2 border-white dark:border-neutral-900 mt-1 flex items-center justify-center text-[8px] text-white">4</div>
+                  <div className="p-3 bg-card border border-border rounded-xl flex-1 space-y-1">
+                    <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider block">All other shoppers / Default</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-foreground">Route to SMS Text messages channel</span>
+                      <Badge className="bg-neutral-500/15 text-neutral-500 border-none font-semibold text-[9px]">Direct SMS</Badge>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+              
+              <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl text-[10px] text-purple-900 dark:text-purple-300 font-medium leading-relaxed">
+                ℹ **Split Strategy Rationale:** Unified splitting distributes copies across channels to optimize open/click conversions based on customer category history and shopping day affinity rules.
+              </div>
+
+            </CardContent>
+          </Card>
+        )}
 
         {/* Message Templates & A/B testing Card */}
         <Card className="shadow-lg">
