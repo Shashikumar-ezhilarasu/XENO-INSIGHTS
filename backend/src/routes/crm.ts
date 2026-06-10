@@ -9,6 +9,7 @@ const router = Router();
  */
 router.get('/customers', async (req: Request, res: Response) => {
   try {
+    const search = req.query.search as string || '';
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     
@@ -18,23 +19,70 @@ router.get('/customers', async (req: Request, res: Response) => {
 
     const skip = (page - 1) * limit;
 
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
     const [customers, total] = await prisma.$transaction([
       prisma.customer.findMany({
+        where,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
           orders: {
             orderBy: { createdAt: 'desc' },
-            take: 5
+            take: 20
+          },
+          _count: {
+            select: { orders: true }
           }
         }
       }),
-      prisma.customer.count()
+      prisma.customer.count({ where })
     ]);
 
+    const formattedCustomers = customers.map(c => {
+      const orders = c.orders || [];
+      const categoryCounts: Record<string, number> = {};
+      orders.forEach(o => {
+        categoryCounts[o.category] = (categoryCounts[o.category] || 0) + 1;
+      });
+      let mostPurchasedCategory = c.favoriteCategory || 'None';
+      let maxCount = 0;
+      Object.entries(categoryCounts).forEach(([cat, count]) => {
+        if (count > maxCount) {
+          maxCount = count;
+          mostPurchasedCategory = cat;
+        }
+      });
+
+      return {
+        id: c.id,
+        name: c.name,
+        email: c.email,
+        phone: c.phone,
+        totalSpends: c.totalSpends,
+        lastVisitDate: c.lastVisitDate,
+        loyaltyPoints: c.loyaltyPoints,
+        favoriteCategory: c.favoriteCategory,
+        discountSeekingBehavior: c.discountSeekingBehavior,
+        preferredShoppingDay: c.preferredShoppingDay,
+        referrerId: c.referrerId,
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+        orders,
+        mostPurchasedCategory,
+        totalOrdersCount: c._count?.orders || orders.length
+      };
+    });
+
     return res.json({
-      data: customers,
+      data: formattedCustomers,
       meta: {
         total,
         page,
