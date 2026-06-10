@@ -14,7 +14,13 @@ model Customer {
   phone          String
   totalSpends    Float           @default(0.0)
   lastVisitDate  DateTime?
-  loyaltyPoints  Int             @default(0)
+  loyaltyPoints  Float           @default(0.0)
+  favoriteCategory String        @default("Coffee")
+  discountSeekingBehavior String @default("MID") // LOW, MID, HIGH
+  preferredShoppingDay String   @default("Saturday")
+  referrerId     String?
+  referrer       Customer?       @relation("CustomerReferral", fields: [referrerId], references: [id])
+  referred       Customer[]      @relation("CustomerReferral")
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   orders         Order[]
@@ -46,6 +52,7 @@ model Campaign {
   buttons         String?         // Serialized JSON of buttons, e.g. '["Buy Now", "Opt Out"]'
   channel         String          // "WHATSAPP" | "EMAIL" | "SMS" | "RCS"
   status          String          @default("PENDING")
+  autoSplit       Boolean         @default(false)
   createdAt       DateTime        @default(now())
   communications  Communication[]
   triggers        Trigger[]
@@ -57,6 +64,7 @@ model Communication {
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   campaignId String
   campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  channel    String?  // The specific channel used (e.g. WHATSAPP, EMAIL)
   status     String   // "PENDING" | "SENT" | "DELIVERED" | "OPENED" | "CLICKED" | "FAILED"
   variant    String   @default("A") // A/B testing variant: "A" or "B"
   errorMsg   String?
@@ -78,4 +86,25 @@ model Trigger {
   createdAt  DateTime @default(now())
 
   @@index([campaignId])
+}
+
+model Offer {
+  id                 String    @id @default(uuid())
+  code               String    @unique // e.g., "COMEBACK20", "SPIN_WHEEL_50"
+  discountType       String    // "PERCENTAGE", "FLAT"
+  value              Float
+  minOrderValue      Float     @default(0.0)
+  categoryConstraint String?   // Optional targeting category constraint
+  maxTotalUsage      Int       @default(1000)
+  maxPerCustomer     Int       @default(1)
+  currentUsageCount  Int       @default(0)
+  createdAt          DateTime  @default(now())
+}
+
+model LifecycleJourney {
+  id        String   @id @default(uuid())
+  name      String   // e.g., "New Customer Welcome Track", "90-Day Churn Prevention"
+  isActive  Boolean  @default(true)
+  steps     Json     // Array of nodes representing execution milestones, delays, and channel triggers
+  createdAt DateTime @default(now())
 }

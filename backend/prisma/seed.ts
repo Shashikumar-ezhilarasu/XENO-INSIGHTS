@@ -39,7 +39,12 @@ async function main() {
   await prisma.communication.deleteMany({});
   await prisma.campaign.deleteMany({});
   await prisma.order.deleteMany({});
+  await prisma.offer.deleteMany({});
+  await prisma.lifecycleJourney.deleteMany({});
   await prisma.customer.deleteMany({});
+
+  const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const BEHAVIORS = ['LOW', 'MID', 'HIGH'];
 
   console.log('🌱 Generating 100 realistic customer profiles...');
   const customers = [];
@@ -56,7 +61,10 @@ async function main() {
       email,
       phone,
       totalSpends: 0.0,
-      loyaltyPoints: getRandomInt(10, 500),
+      loyaltyPoints: Math.round(getRandomRange(10.0, 500.0) * 10) / 10,
+      favoriteCategory: getRandomElement(CATEGORIES),
+      discountSeekingBehavior: getRandomElement(BEHAVIORS),
+      preferredShoppingDay: getRandomElement(DAYS_OF_WEEK),
       lastVisitDate: null as Date | null
     });
   }
@@ -135,6 +143,101 @@ async function main() {
     data: orders
   });
 
+  // Establish referrerId self-referencing hierarchy for about 10% of customers
+  console.log('🔗 Creating customer referral links...');
+  const insertedCustomers = await prisma.customer.findMany({ select: { id: true } });
+  for (let i = 0; i < Math.floor(insertedCustomers.length * 0.1); i++) {
+    const target = insertedCustomers[i];
+    // Pick a random customer as referrer (different from target)
+    let referrerIdx = getRandomInt(0, insertedCustomers.length - 1);
+    while (insertedCustomers[referrerIdx].id === target.id) {
+      referrerIdx = getRandomInt(0, insertedCustomers.length - 1);
+    }
+    const referrer = insertedCustomers[referrerIdx];
+    await prisma.customer.update({
+      where: { id: target.id },
+      data: { referrerId: referrer.id }
+    });
+  }
+
+  console.log('🎟️ Seeding next-gen offer codes...');
+  const offersData = [
+    {
+      code: "COMEBACK20",
+      discountType: "PERCENTAGE",
+      value: 20.0,
+      minOrderValue: 30.0,
+      categoryConstraint: null,
+      maxTotalUsage: 500,
+      maxPerCustomer: 1,
+      currentUsageCount: 24
+    },
+    {
+      code: "SPIN_WHEEL_50",
+      discountType: "PERCENTAGE",
+      value: 50.0,
+      minOrderValue: 50.0,
+      categoryConstraint: null,
+      maxTotalUsage: 100,
+      maxPerCustomer: 1,
+      currentUsageCount: 8
+    },
+    {
+      code: "COFFEE_LOVER",
+      discountType: "FLAT",
+      value: 5.0,
+      minOrderValue: 15.0,
+      categoryConstraint: "Coffee",
+      maxTotalUsage: 1000,
+      maxPerCustomer: 2,
+      currentUsageCount: 142
+    },
+    {
+      code: "BAKERYFREE",
+      discountType: "PERCENTAGE",
+      value: 100.0,
+      minOrderValue: 10.0,
+      categoryConstraint: "Bakery",
+      maxTotalUsage: 50,
+      maxPerCustomer: 1,
+      currentUsageCount: 48
+    }
+  ];
+  await prisma.offer.createMany({
+    data: offersData
+  });
+
+  console.log('🌀 Seeding lifecycle customer journeys...');
+  const journeysData = [
+    {
+      name: "New Customer Welcome Track",
+      isActive: true,
+      steps: [
+        { step: 1, type: "DELAY", value: "1 day" },
+        { step: 2, type: "CHANNEL_TRIGGER", channel: "EMAIL", template: "Welcome to Xeno, {{name}}! Here is your 10% off code: WELCOME10." },
+        { step: 3, type: "DELAY", value: "5 days" },
+        { step: 4, type: "CHANNEL_TRIGGER", channel: "SMS", template: "Hey {{name}}, don't forget to use your welcome offer!" }
+      ]
+    },
+    {
+      name: "90-Day Churn Prevention",
+      isActive: true,
+      steps: [
+        { step: 1, type: "SEGMENT_CHECK", criteria: "lastVisitDate > 90 days" },
+        { step: 2, type: "CHANNEL_TRIGGER", channel: "WHATSAPP", template: "Are we broken up? 💔 {{name}}, we miss you. Use code COMEBACK20 for 20% off." }
+      ]
+    }
+  ];
+  for (const journey of journeysData) {
+    await prisma.lifecycleJourney.create({
+      data: {
+        name: journey.name,
+        isActive: journey.isActive,
+        steps: journey.steps
+      }
+    });
+  }
+
   console.log('📢 Creating sample baseline Campaign & Communications...');
   const campaignId = crypto.randomUUID();
   const campaignName = "Test Coffee Promotion";
@@ -162,7 +265,6 @@ async function main() {
   const sampleCustomers = shuffledCustomers.slice(0, 16);
   
   const communications = [];
-  const statuses = ['DELIVERED', 'OPENED', 'CLICKED', 'FAILED'];
   
   sampleCustomers.forEach((customer, index) => {
     const variant = index % 2 === 0 ? 'A' : 'B';
@@ -186,6 +288,7 @@ async function main() {
       id: crypto.randomUUID(),
       campaignId,
       customerId: customer.id,
+      channel: "WHATSAPP",
       status,
       variant,
       createdAt: timeStamp,
