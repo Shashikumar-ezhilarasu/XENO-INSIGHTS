@@ -55,6 +55,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const handleLogout = () => {
     setIsAuthenticated(false);
     localStorage.removeItem('xeno_authenticated');
+    localStorage.removeItem('xeno_onboarded');
     setUsername('');
     setPassword('');
   };
