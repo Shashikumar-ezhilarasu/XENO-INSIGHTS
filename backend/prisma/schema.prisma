@@ -21,6 +21,10 @@ model Customer {
   referrerId     String?
   referrer       Customer?       @relation("CustomerReferral", fields: [referrerId], references: [id])
   referred       Customer[]      @relation("CustomerReferral")
+  location       String          @default("Chennai, India")
+  feedback       String          @default("Excellent products and fast delivery!")
+  modeOfPayment  String          @default("UPI")
+  preferredCommunication String   @default("WHATSAPP")
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   orders         Order[]
