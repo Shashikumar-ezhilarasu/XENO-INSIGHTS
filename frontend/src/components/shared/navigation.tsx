@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Sun, Moon, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Sun, Moon, RefreshCw, ShieldCheck, Globe } from 'lucide-react';
+import { useSharedState } from '../../hooks/useSharedState';
 
 export default function Navigation() {
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const { language, setLanguage } = useSharedState();
 
   // Load and apply theme on mount
   useEffect(() => {
@@ -42,6 +44,22 @@ export default function Navigation() {
       </div>
 
       <div className="flex items-center space-x-4">
+        {/* Language dropdown in header */}
+        <div className="flex items-center gap-1.5 bg-secondary/35 border border-border rounded-lg px-2.5 py-1 text-xs text-foreground focus-within:border-purple-500/50 transition">
+          <Globe className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value as any)}
+            className="bg-transparent outline-none text-xs font-semibold text-foreground cursor-pointer focus:outline-none"
+          >
+            <option value="EN" className="bg-card">🇺🇸 EN</option>
+            <option value="ES" className="bg-card">🇪🇸 ES</option>
+            <option value="TA" className="bg-card">🇮🇳 TA</option>
+            <option value="HI" className="bg-card">🇮🇳 HI</option>
+            <option value="FR" className="bg-card">🇫🇷 FR</option>
+          </select>
+        </div>
+
         {/* Theme Toggler */}
         <button
           onClick={toggleTheme}

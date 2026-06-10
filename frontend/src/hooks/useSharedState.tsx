@@ -24,6 +24,8 @@ interface SharedStateContextType {
   setCampaignTemplate: (template: string) => void;
   campaignChannel: string;
   setCampaignChannel: (channel: string) => void;
+  language: 'EN' | 'ES' | 'TA' | 'HI' | 'FR';
+  setLanguage: (lang: 'EN' | 'ES' | 'TA' | 'HI' | 'FR') => void;
 }
 
 const SharedStateContext = createContext<SharedStateContextType | undefined>(undefined);
@@ -32,6 +34,23 @@ export function SharedStateProvider({ children }: { children: ReactNode }) {
   const [selectedAudience, setSelectedAudience] = useState<AudienceData | null>(null);
   const [campaignTemplate, setCampaignTemplate] = useState('Hey {{name}}, here is 10% off your next Coffee!');
   const [campaignChannel, setCampaignChannel] = useState('WHATSAPP');
+  const [language, setLanguageState] = useState<'EN' | 'ES' | 'TA' | 'HI' | 'FR'>('EN');
+
+  React.useEffect(() => {
+    try {
+      const savedLang = localStorage.getItem('xeno_language');
+      if (savedLang && ['EN', 'ES', 'TA', 'HI', 'FR'].includes(savedLang)) {
+        setLanguageState(savedLang as any);
+      }
+    } catch (e) {}
+  }, []);
+
+  const setLanguage = (lang: 'EN' | 'ES' | 'TA' | 'HI' | 'FR') => {
+    setLanguageState(lang);
+    try {
+      localStorage.setItem('xeno_language', lang);
+    } catch (e) {}
+  };
 
   return (
     <SharedStateContext.Provider
@@ -41,7 +60,9 @@ export function SharedStateProvider({ children }: { children: ReactNode }) {
         campaignTemplate,
         setCampaignTemplate,
         campaignChannel,
-        setCampaignChannel
+        setCampaignChannel,
+        language,
+        setLanguage
       }}
     >
       {children}
