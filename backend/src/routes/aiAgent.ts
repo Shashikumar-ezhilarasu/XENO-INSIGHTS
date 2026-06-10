@@ -184,10 +184,10 @@ function getPresetForPrompt(promptText: string) {
 
 /**
  * POST /api/ai/draft-campaign
- * Automatically orchestrates a campaign draft from a prompt text using Gemini.
+ * Automatically orchestrates a campaign draft
  */
 router.post('/ai/draft-campaign', aiSegmentRateLimiter, validateAiSegment, async (req: Request, res: Response) => {
-  const { promptText } = req.body;
+  const { promptText, tone, incentive, channelOverride } = req.body;
 
   let queryData;
   let useFallback = false;
@@ -285,7 +285,11 @@ router.post('/ai/draft-campaign', aiSegmentRateLimiter, validateAiSegment, async
       });
 
       console.log(`[AI Agent] Analyzing prompt for campaign draft: "${promptText}"`);
-      const prompt = `Formulate a retention campaign for: "${promptText}"`;
+      let prompt = `Formulate a campaign draft for: "${promptText}"`;
+      if (tone) prompt += ` with copywriting tone: "${tone}"`;
+      if (incentive) prompt += ` and dynamic target incentive: "${incentive}"`;
+      if (channelOverride) prompt += ` and route channel override: "${channelOverride}"`;
+
       const result = await model.generateContent(prompt);
       const responseText = result.response.text();
 
@@ -297,7 +301,37 @@ router.post('/ai/draft-campaign', aiSegmentRateLimiter, validateAiSegment, async
   }
 
   if (useFallback) {
-    queryData = getPresetForPrompt(promptText);
+    const preset = getPresetForPrompt(promptText);
+    queryData = {
+      ...preset,
+      copywriteSuite: { ...preset.copywriteSuite },
+      bannerConfig: { ...preset.bannerConfig },
+      gamifiedConfig: { ...preset.gamifiedConfig }
+    };
+
+    if (channelOverride) {
+      queryData.suggestedChannel = channelOverride.toUpperCase();
+    }
+    if (tone) {
+      const toneLower = tone.toLowerCase();
+      if (toneLower.includes('urgent') || toneLower.includes('fomo')) {
+        queryData.copywriteSuite.notificationHeader = '🚨 URGENT: Don\'t miss out!';
+        queryData.copywriteSuite.messageTemplate = queryData.copywriteSuite.messageTemplate.replace(/Hey/i, 'HURRY! Time is running out. Hey');
+      } else if (toneLower.includes('premium') || toneLower.includes('luxury')) {
+        queryData.copywriteSuite.notificationHeader = '💎 An Exclusive Invitation';
+        queryData.copywriteSuite.messageTemplate = queryData.copywriteSuite.messageTemplate.replace(/Hey/i, 'Greetings');
+      }
+    }
+    if (incentive) {
+      const inc = incentive.toUpperCase();
+      if (inc.includes('PERCENTAGE')) {
+        queryData.copywriteSuite.messageTemplate = queryData.copywriteSuite.messageTemplate.replace(/\d+%\s*off|flat\s*\$\d+|loyalty/i, '20% off');
+      } else if (inc.includes('FLAT')) {
+        queryData.copywriteSuite.messageTemplate = queryData.copywriteSuite.messageTemplate.replace(/\d+%\s*off|flat\s*\$\d+|loyalty/i, 'flat $10');
+      } else if (inc.includes('LOYALTY')) {
+        queryData.copywriteSuite.messageTemplate = queryData.copywriteSuite.messageTemplate.replace(/\d+%\s*off|flat\s*\$\d+|loyalty/i, '3x loyalty points');
+      }
+    }
   }
 
   try {
