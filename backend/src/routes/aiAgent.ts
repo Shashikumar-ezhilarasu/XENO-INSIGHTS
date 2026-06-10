@@ -182,12 +182,257 @@ function getPresetForPrompt(promptText: string) {
   return DEFAULT_PRESET;
 }
 
+const LOCALIZED_PRESETS: Record<string, Record<string, any>> = {
+  EN: {
+    coffee: {
+      campaignName: 'Operation: Spill the Beans ☕',
+      explanation: 'Targeting coffee lovers who haven\'t ordered in 90 days using WhatsApp for direct reach.',
+      copywriteSuite: {
+        notificationHeader: 'Are we broken up? 💔',
+        messageTemplate: 'Hey {{name}}, our espresso machine has been crying since you left 90 days ago. Let\'s fix this relationship? Use code COMEBACK for a flat 20% off!',
+        creativeQuote: '"Out of sight, out of mind" is a lie. We think about you every morning. - Management'
+      },
+      primaryCallToAction: 'Claim Free Espresso'
+    },
+    vip: {
+      campaignName: '👑 The Royal Treatment',
+      explanation: 'Targeting elite customers with total spend over $500 using elegant email newsletters.',
+      copywriteSuite: {
+        notificationHeader: 'For your eyes only, VIP 💎',
+        messageTemplate: 'Hello {{name}}, since you appreciate the finer things in life, we have a custom luxury gift waiting for you. Claim your hand-packed VIP bundle today!',
+        creativeQuote: 'Quality is remembered long after price is forgotten. Enjoy this token of our appreciation.'
+      },
+      primaryCallToAction: 'Unlock VIP Gift'
+    },
+    bakery: {
+      campaignName: '🥐 Doughn\'t Leave Us Hanging!',
+      explanation: 'Nudging bakery buyers who haven\'t purchased this week with high-engagement RCS rich cards.',
+      copywriteSuite: {
+        notificationHeader: 'Fresh out of the oven! 🔥',
+        messageTemplate: 'Hey {{name}}, those croissants you love are warm and golden right now. Use code FRESH for a free pastry with any order today!',
+        creativeQuote: 'Life is short. Eat the dessert first.'
+      },
+      primaryCallToAction: 'Order Warm Croissant'
+    },
+    default: {
+      campaignName: 'Operation: Win Back Customer Hearts ❤️',
+      explanation: 'Re-engaging inactive customer segments via direct, witty SMS notifications.',
+      copywriteSuite: {
+        notificationHeader: 'Did we do something wrong? 🥺',
+        messageTemplate: 'Hey {{name}}, we haven\'t seen you in a while and we\'re starting to take it personally. Come back today and get 15% off anything!',
+        creativeQuote: 'We miss you more than a dog misses its owner when they go to work.'
+      },
+      primaryCallToAction: 'Get 15% Off'
+    }
+  },
+  ES: {
+    coffee: {
+      campaignName: 'Operación: Revelar los granos ☕',
+      explanation: 'Dirigido a los amantes del café que no han ordenado en 90 días usando WhatsApp para alcance directo.',
+      copywriteSuite: {
+        notificationHeader: '¿Nos hemos separado? 💔',
+        messageTemplate: 'Hola {{name}}, nuestra máquina de café ha estado llorando desde que te fuiste hace 90 días. ¿Arreglamos esta relación? ¡Usa el código COMEBACK para obtener un 20% de descuento!',
+        creativeQuote: '"Fuera de la vista, fuera de la mente" es mentira. Pensamos en ti cada mañana. - La Dirección'
+      },
+      primaryCallToAction: 'Reclamar Espresso Gratis'
+    },
+    vip: {
+      campaignName: '👑 El Tratamiento Real',
+      explanation: 'Dirigido a clientes de élite con un gasto total superior a $500 utilizando boletines informativos elegantes por correo electrónico.',
+      copywriteSuite: {
+        notificationHeader: 'Solo para tus ojos, VIP 💎',
+        messageTemplate: 'Hola {{name}}, ya que aprecias las cosas buenas de la vida, tenemos un regalo de lujo personalizado esperándote. ¡Reclama tu paquete VIP hoy mismo!',
+        creativeQuote: 'La calidad se recuerda mucho después de que se olvida el precio. Disfruta de esta muestra de nuestro aprecio.'
+      },
+      primaryCallToAction: 'Desbloquear Regalo VIP'
+    },
+    bakery: {
+      campaignName: '🥐 ¡No nos dejes colgados!',
+      explanation: 'Empujando a los compradores de panadería que no han comprado esta semana con tarjetas ricas en RCS de alto compromiso.',
+      copywriteSuite: {
+        notificationHeader: '¡Recién salido del horno! 🔥',
+        messageTemplate: 'Hola {{name}}, esos croissants que te encantan están calientes y dorados ahora mismo. ¡Usa el código FRESH para un pastel gratis con cualquier pedido hoy!',
+        creativeQuote: 'La vida es corta. Come el postre primero.'
+      },
+      primaryCallToAction: 'Pedir Croissant Caliente'
+    },
+    default: {
+      campaignName: 'Operación: Recuperar Corazones ❤️',
+      explanation: 'Re-enganchando segmentos de clientes inactivos a través de notificaciones SMS directas e ingeniosas.',
+      copywriteSuite: {
+        notificationHeader: '¿Hicimos algo mal? 🥺',
+        messageTemplate: 'Hola {{name}}, no te hemos visto en un tiempo y empezamos a tomárnoslo como algo personal. ¡Vuelve hoy y obtén un 15% de descuento en cualquier cosa!',
+        creativeQuote: 'Te extrañamos más de lo que un perro extraña a su dueño cuando va a trabajar.'
+      },
+      primaryCallToAction: 'Obtén 15% Descuento'
+    }
+  },
+  TA: {
+    coffee: {
+      campaignName: 'ஆபரேஷன்: காபி திருவிழா ☕',
+      explanation: 'வாட்ஸ்அப் மூலம் காபி பிரியர்களை நேரடியாக தொடர்பு கொள்ள இலக்கு வைக்கப்பட்டுள்ளது.',
+      copywriteSuite: {
+        notificationHeader: 'நமக்குள் பிரிவு ஏற்பட்டுவிட்டதா? 💔',
+        messageTemplate: 'வணக்கம் {{name}}, எஸ்பிரெசோ இயந்திரம் உங்களுக்காக ஏங்குகிறது. மீண்டும் வர தயாரா? 20% தள்ளுபடிக்கு COMEBACK குறியீட்டைப் பயன்படுத்தவும்!',
+        creativeQuote: 'ஒவ்வொரு காலையும் உங்களை நினைக்கிறோம். - மேலாண்மை'
+      },
+      primaryCallToAction: 'இலவச எஸ்பிரெசோ பெறுக'
+    },
+    vip: {
+      campaignName: '👑 விஐபி சிறப்பு பரிசு',
+      explanation: 'மின்னஞ்சல் செய்திமடல் மூலம் $500-க்கு மேல் செலவழித்த விஐபி வாடிக்கையாளர்களை இலக்கு வைக்கிறது.',
+      copywriteSuite: {
+        notificationHeader: 'உங்களுக்கு மட்டுமே, விஐபி 💎',
+        messageTemplate: 'வணக்கம் {{name}}, உங்களுக்காக ஒரு சிறப்பு விஐபி பரிசு காத்திருக்கிறது. இன்றே உங்கள் விஐபி பரிசைப் பெற்றுக்கொள்ளுங்கள்!',
+        creativeQuote: 'விலையை விட தரம் எப்போதும் நினைவில் இருக்கும். எங்களின் அன்பான பரிசு இது.'
+      },
+      primaryCallToAction: 'விஐபி பரிசைத் திறக்கவும்'
+    },
+    bakery: {
+      campaignName: '🥐 எங்களை மறந்துவிடாதீர்கள்!',
+      explanation: 'இந்த வாரம் பேக்கரி பொருட்களை வாங்காத வாடிக்கையாளர்களுக்கு சிறந்த ஆர்சிஎஸ் அட்டைகள் மூலம் நினைவூட்டல்.',
+      copywriteSuite: {
+        notificationHeader: 'சூடான பேக்கரி பொருட்கள் தயார்! 🔥',
+        messageTemplate: 'வணக்கம் {{name}}, உங்களுக்குப் பிடித்த குரோசண்ட்ஸ் இப்போது சூடாகவும் சுவையாகவும் தயாராக உள்ளன. FRESH குறியீட்டைப் பயன்படுத்தி இலவச பேஸ்ட்ரி பெறவும்!',
+        creativeQuote: 'வாழ்க்கை குறுகியது. இனிப்பை முதலில் சாப்பிடுங்கள்.'
+      },
+      primaryCallToAction: 'குரோசண்ட் ஆர்டர் செய்க'
+    },
+    default: {
+      campaignName: 'ஆபரேஷன்: அன்பான நினைவூட்டல் ❤️',
+      explanation: 'செயலற்ற வாடிக்கையாளர்களை தானியங்கி எஸ்எம்எஸ் மூலம் மீண்டும் ஈர்க்கிறது.',
+      copywriteSuite: {
+        notificationHeader: 'நாங்கள் ஏதேனும் தவறு செய்தோமா? 🥺',
+        messageTemplate: 'வணக்கம் {{name}}, உங்களை பார்த்து சில நாட்கள் ஆகिவிட்டன. இன்றே திரும்பி வந்து எதிலும் 15% தள்ளுபடி பெறுங்கள்!',
+        creativeQuote: 'நாங்கள் உங்களை மிகவும் நினைவில் கொள்கிறோம்.'
+      },
+      primaryCallToAction: '15% தள்ளுபடி பெறுக'
+    }
+  },
+  HI: {
+    coffee: {
+      campaignName: 'ऑपरेशन: कॉफ़ी कनेक्शन ☕',
+      explanation: '90 दिनों से ऑर्डर नहीं करने वाले कॉफ़ी प्रेमियों को सीधे व्हाट्सएप के जरिए लक्षित करना।',
+      copywriteSuite: {
+        notificationHeader: 'क्या हमारा ब्रेकअप हो गया है? 💔',
+        messageTemplate: 'नमस्ते {{name}}, आपके जाने के बाद से हमारी एस्प्रेसो मशीन रो रही है। क्या हम इस रिश्ते को ठीक कर सकते हैं? फ्लैट 20% छूट के लिए COMEBACK कोड का उपयोग करें!',
+        creativeQuote: '"आँखों से ओझल, मन से ओझल" एक झूठ है। हम हर सुबह आपके बारे में सोचते हैं। - प्रबंधन'
+      },
+      primaryCallToAction: 'मुफ़्त एस्प्रेसो प्राप्त करें'
+    },
+    vip: {
+      campaignName: '👑 द रॉयल ट्रीटमेंट',
+      explanation: 'सुरुचिपूर्ण ईमेल न्यूज़लेटर्स का उपयोग करके $500 से अधिक खर्च वाले विशिष्ट ग्राहकों को लक्षित करना।',
+      copywriteSuite: {
+        notificationHeader: 'केवल आपके लिए, VIP 💎',
+        messageTemplate: 'नमस्ते {{name}}, हमारे पास आपके लिए एक कस्टम लक्जरी उपहार तैयार है। आज ही अपना VIP बंडल प्राप्त करें!',
+        creativeQuote: 'कीमत भूल जाने के बाद भी गुणवत्ता याद रहती है। हमारे आभार के इस प्रतीक का आनंद लें।'
+      },
+      primaryCallToAction: 'VIP उपहार अनलॉक करें'
+    },
+    bakery: {
+      campaignName: '🥐 हमें भूल मत जाना!',
+      explanation: 'इस सप्ताह खरीदारी नहीं करने वाले बेकरी खरीदारों को उच्च-जुड़ाव वाले आरसीएस कार्ड के जरिए अनुस्मारक भेजना।',
+      copywriteSuite: {
+        notificationHeader: 'ओवन से एकदम ताज़ा! 🔥',
+        messageTemplate: 'नमस्ते {{name}}, आपके पसंदीदा क्रोइसैन इस समय गर्म और सुनहरे हैं। आज किसी भी ऑर्डर के साथ मुफ़्त पेस्ट्री के लिए FRESH कोड का उपयोग करें!',
+        creativeQuote: 'जीवन छोटा है। मिठाई पहले खाएं।'
+      },
+      primaryCallToAction: 'गर्म क्रोइसैन ऑर्डर करें'
+    },
+    default: {
+      campaignName: 'ऑपरेशन: दिल जीतना ❤️',
+      explanation: 'सीधे और आकर्षक एसएमएस सूचनाओं के माध्यम से निष्क्रिय ग्राहक वर्गों को फिर से जोड़ना।',
+      copywriteSuite: {
+        notificationHeader: 'क्या हमसे कोई गलती हुई? 🥺',
+        messageTemplate: 'नमस्ते {{name}}, हम आपको याद कर रहे हैं। आज ही वापस आएं और किसी भी चीज़ पर 15% की छूट पाएं!',
+        creativeQuote: 'हम आपको याद करते हैं जैसे एक कुत्ता अपने मालिक को याद करता है।'
+      },
+      primaryCallToAction: '15% छूट पाएं'
+    }
+  },
+  FR: {
+    coffee: {
+      campaignName: 'Opération: Révéler le café ☕',
+      explanation: 'Cibler les amateurs de café qui n\'ont pas commandé depuis 90 jours via WhatsApp pour un impact direct.',
+      copywriteSuite: {
+        notificationHeader: 'Est-ce qu\'on est séparés ? 💔',
+        messageTemplate: 'Salut {{name}}, notre machine à expresso pleure depuis votre départ il y a 90 jours. Si on réparait notre relation ? Utilisez le code COMEBACK pour 20% de réduction !',
+        creativeQuote: '"Loin des yeux, loin du cœur" est un mensonge. Nous pensons à vous chaque matin. - La Direction'
+      },
+      primaryCallToAction: 'Réclamer Expresso Gratuit'
+    },
+    vip: {
+      campaignName: '👑 Le Traitement Royal',
+      explanation: 'Cibler les clients élites ayant dépensé plus de $500 en utilisant des newsletters élégantes par e-mail.',
+      copywriteSuite: {
+        notificationHeader: 'Pour vos yeux seulement, VIP 💎',
+        messageTemplate: 'Bonjour {{name}}, puisque vous appréciez les bonnes choses de la vie, un cadeau de luxe vous attend. Réclamez votre lot VIP dès aujourd\'hui !',
+        creativeQuote: 'La qualité reste bien après que le prix a été oublié. Profitez de ce gage de notre appréciation.'
+      },
+      primaryCallToAction: 'Débloquer Cadeau VIP'
+    },
+    bakery: {
+      campaignName: '🥐 Ne nous laissez pas tomber !',
+      explanation: 'Relancer les acheteurs de boulangerie n\'ayant pas acheté cette semaine avec des cartes RCS engageantes.',
+      copywriteSuite: {
+        notificationHeader: 'Tout juste sorti du four ! 🔥',
+        messageTemplate: 'Salut {{name}}, ces croissants que vous adorez sont chauds et dorés en ce moment. Utilisez le code FRESH pour une viennoiserie offerte aujourd\'hui !',
+        creativeQuote: 'La vie est courte. Mangez le dessert en premier.'
+      },
+      primaryCallToAction: 'Commander Croissant Chaud'
+    },
+    default: {
+      campaignName: 'Opération: Reconquérir les Cœurs ❤️',
+      explanation: 'Réengager les segments inactifs via des SMS directs et humoristiques.',
+      copywriteSuite: {
+        notificationHeader: 'Avons-nous fait quelque chose de mal ? 🥺',
+        messageTemplate: 'Salut {{name}}, nous ne vous avons pas vu depuis un moment. Revenez aujourd\'hui et profitez de 15% de réduction sur tout !',
+        creativeQuote: 'Vous nous manquez plus qu\'un chien ne manque à son maître quand il part travailler.'
+      },
+      primaryCallToAction: 'Obtenir 15% de Réduction'
+    }
+  }
+};
+
+function getLocalizedPreset(promptText: string, langCode: string) {
+  const normalized = promptText.toLowerCase();
+  const lang = (langCode && LOCALIZED_PRESETS[langCode.toUpperCase()]) ? langCode.toUpperCase() : 'EN';
+  const dict = LOCALIZED_PRESETS[lang];
+  
+  let key = 'default';
+  if (normalized.includes('coffee') || normalized.includes('bean')) {
+    key = 'coffee';
+  } else if (normalized.includes('high-spenders') || normalized.includes('vip') || normalized.includes('spend')) {
+    key = 'vip';
+  } else if (normalized.includes('bakery') || normalized.includes('croissant') || normalized.includes('pastry')) {
+    key = 'bakery';
+  }
+
+  const basePreset = getPresetForPrompt(promptText);
+  const localData = dict[key];
+
+  return {
+    ...basePreset,
+    campaignName: localData.campaignName,
+    explanation: localData.explanation,
+    copywriteSuite: {
+      ...basePreset.copywriteSuite,
+      ...localData.copywriteSuite
+    },
+    bannerConfig: {
+      ...basePreset.bannerConfig,
+      primaryCallToAction: localData.primaryCallToAction
+    }
+  };
+}
+
 /**
  * POST /api/ai/draft-campaign
  * Automatically orchestrates a campaign draft
  */
 router.post('/ai/draft-campaign', aiSegmentRateLimiter, validateAiSegment, async (req: Request, res: Response) => {
-  const { promptText, tone, incentive, channelOverride } = req.body;
+  const { promptText, tone, incentive, channelOverride, language } = req.body;
 
   let queryData;
   let useFallback = false;
@@ -289,6 +534,7 @@ router.post('/ai/draft-campaign', aiSegmentRateLimiter, validateAiSegment, async
       if (tone) prompt += ` with copywriting tone: "${tone}"`;
       if (incentive) prompt += ` and dynamic target incentive: "${incentive}"`;
       if (channelOverride) prompt += ` and route channel override: "${channelOverride}"`;
+      if (language) prompt += ` and draft all copywriting text (notificationHeader, messageTemplate, creativeQuote, primaryCallToAction) in the target language: "${language}" (e.g. English, Spanish, Tamil, Hindi, French).`;
 
       const result = await model.generateContent(prompt);
       const responseText = result.response.text();
@@ -301,7 +547,7 @@ router.post('/ai/draft-campaign', aiSegmentRateLimiter, validateAiSegment, async
   }
 
   if (useFallback) {
-    const preset = getPresetForPrompt(promptText);
+    const preset = getLocalizedPreset(promptText, language || 'EN');
     queryData = {
       ...preset,
       copywriteSuite: { ...preset.copywriteSuite },
