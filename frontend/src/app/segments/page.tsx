@@ -118,6 +118,8 @@ export default function SegmentsPage() {
   const [editCampaignName, setEditCampaignName] = useState('');
   const [editMessageTemplate, setEditMessageTemplate] = useState('');
   const [editChannel, setEditChannel] = useState('WHATSAPP');
+  const [selectedTone, setSelectedTone] = useState('WITTY');
+  const [selectedIncentive, setSelectedIncentive] = useState('PERCENTAGE');
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [broadcastSuccess, setBroadcastSuccess] = useState(false);
 
@@ -260,7 +262,12 @@ export default function SegmentsPage() {
   };
 
   // Execute True Agentic Draft Campaign Orchestration
-  const handleDraftCampaign = async (promptText: string) => {
+  const handleDraftCampaign = async (
+    promptText: string,
+    toneVal: string = selectedTone,
+    incentiveVal: string = selectedIncentive,
+    channelVal: string = editChannel
+  ) => {
     if (!promptText.trim()) return;
 
     setIsParsing(true);
@@ -274,7 +281,12 @@ export default function SegmentsPage() {
       const response = await fetch(`${BACKEND_URL}/api/ai/draft-campaign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ promptText }),
+        body: JSON.stringify({ 
+          promptText,
+          tone: toneVal,
+          incentive: incentiveVal,
+          channelOverride: channelVal
+        }),
       });
 
       const data: CampaignDraftData = await response.json();
@@ -341,6 +353,30 @@ export default function SegmentsPage() {
         }
       };
 
+      if (channelVal) {
+        mockDraft.campaign.channel = channelVal.toUpperCase();
+      }
+      if (toneVal) {
+        const toneLower = toneVal.toLowerCase();
+        if (toneLower.includes('urgent') || toneLower.includes('fomo')) {
+          mockDraft.copywriteSuite.notificationHeader = '🚨 URGENT: Don\'t miss out!';
+          mockDraft.copywriteSuite.messageTemplate = mockDraft.copywriteSuite.messageTemplate.replace(/Hey/i, 'HURRY! Time is running out. Hey');
+        } else if (toneLower.includes('premium') || toneLower.includes('luxury')) {
+          mockDraft.copywriteSuite.notificationHeader = '💎 An Exclusive Invitation';
+          mockDraft.copywriteSuite.messageTemplate = mockDraft.copywriteSuite.messageTemplate.replace(/Hey/i, 'Greetings');
+        }
+      }
+      if (incentiveVal) {
+        const inc = incentiveVal.toUpperCase();
+        if (inc.includes('PERCENTAGE')) {
+          mockDraft.copywriteSuite.messageTemplate = mockDraft.copywriteSuite.messageTemplate.replace(/\d+%\s*off|flat\s*\$\d+|loyalty|flat\s*\$\d+\s*off/i, '20% off');
+        } else if (inc.includes('FLAT')) {
+          mockDraft.copywriteSuite.messageTemplate = mockDraft.copywriteSuite.messageTemplate.replace(/\d+%\s*off|flat\s*\$\d+|loyalty|flat\s*\$\d+\s*off/i, 'flat $10');
+        } else if (inc.includes('LOYALTY')) {
+          mockDraft.copywriteSuite.messageTemplate = mockDraft.copywriteSuite.messageTemplate.replace(/\d+%\s*off|flat\s*\$\d+|loyalty|flat\s*\$\d+\s*off/i, '3x loyalty points');
+        }
+      }
+
       setDraftCampaign(mockDraft);
       setEditCampaignName(mockDraft.campaign.name);
       setEditMessageTemplate(mockDraft.copywriteSuite.messageTemplate);
@@ -357,6 +393,8 @@ export default function SegmentsPage() {
     setIsBroadcasting(true);
     setError(null);
 
+    const compiledTemplate = getCompiledMessage(editMessageTemplate, selectedTone, selectedIncentive);
+
     try {
       // Step 1: Update Campaign with edited name, copy, channel and status='PENDING'
       const updateRes = await fetch(`${BACKEND_URL}/api/campaigns/${draftCampaign.campaign.id}`, {
@@ -364,7 +402,7 @@ export default function SegmentsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: editCampaignName,
-          messageTemplate: editMessageTemplate,
+          messageTemplate: compiledTemplate,
           channel: editChannel,
           status: 'PENDING'
         }),
@@ -406,6 +444,44 @@ export default function SegmentsPage() {
         router.push('/analytics');
       }, 1500);
     }
+  };
+
+  const getCompiledHeader = (baseHeader: string, tone: string) => {
+    if (!baseHeader) return '';
+    const toneUpper = tone.toUpperCase();
+    if (toneUpper === 'URGENT') {
+      return '🚨 URGENT: Don\'t miss out!';
+    } else if (toneUpper === 'PREMIUM') {
+      return '💎 An Exclusive Invitation';
+    }
+    return baseHeader;
+  };
+
+  const getCompiledMessage = (templateText: string, tone: string, incentive: string) => {
+    if (!templateText) return '';
+    let text = templateText;
+    
+    // Apply Tone overrides:
+    const toneUpper = tone.toUpperCase();
+    if (toneUpper === 'URGENT') {
+      if (!text.match(/HURRY!/i)) {
+        text = text.replace(/^(Hey|Greetings)/i, 'HURRY! Time is running out. Hey');
+      }
+    } else if (toneUpper === 'PREMIUM') {
+      text = text.replace(/^(Hey|HURRY! Time is running out. Hey)/i, 'Greetings');
+    }
+    
+    // Apply Incentive overrides:
+    const incUpper = incentive.toUpperCase();
+    if (incUpper === 'PERCENTAGE') {
+      text = text.replace(/\d+%\s*off|flat\s*\$\d+|loyalty|flat\s*\$\d+\s*off/i, '20% off');
+    } else if (incUpper === 'FLAT') {
+      text = text.replace(/\d+%\s*off|flat\s*\$\d+|loyalty|flat\s*\$\d+\s*off/i, 'flat $10');
+    } else if (incUpper === 'LOYALTY') {
+      text = text.replace(/\d+%\s*off|flat\s*\$\d+|loyalty|flat\s*\$\d+\s*off/i, '3x loyalty points');
+    }
+    
+    return text;
   };
 
   // Helper to interpolate vars in notification preview
@@ -602,11 +678,167 @@ export default function SegmentsPage() {
       {draftCampaign && !isParsing && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-scaleUp">
           
-          {/* Left Column: The Ad Canvas (Rich Media Preview) - Takes 5 cols */}
+          {/* Left Column: Review & Execution Panel - Takes 7 cols */}
+          <div className="lg:col-span-7 space-y-6">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
+              <Bot className="w-3.5 h-3.5 text-purple-500" />
+              Left Column: Review & Execution Panel
+            </h3>
+
+            {/* Strategic AI Explanation Insight box */}
+            <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-2xl text-purple-900 dark:text-purple-300 text-sm font-medium flex items-start gap-3 shadow-inner">
+              <Bot className="w-5 h-5 text-purple-500 mt-0.5 shrink-0" />
+              <div className="space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-purple-600 block">Agent Campaign Strategy</span>
+                <p className="leading-relaxed">{draftCampaign.explanation}</p>
+              </div>
+            </div>
+
+            {/* Campaign Config Review Form */}
+            <Card className="shadow-lg border border-border">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Campaign Editor</CardTitle>
+                  <span className="px-3 py-1 bg-secondary text-foreground rounded-full text-xs font-semibold border border-border flex items-center gap-1">
+                    <Users className="w-3 h-3 text-neutral-400" />
+                    {draftCampaign.customerCount} customers targeted
+                  </span>
+                </div>
+                <CardDescription>Fine-tune the draft details generated by the growth assistant</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Campaign Name */}
+                <div className="space-y-1">
+                  <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider">Campaign Name</label>
+                  <input
+                    type="text"
+                    value={editCampaignName}
+                    onChange={(e) => setEditCampaignName(e.target.value)}
+                    required
+                    className="w-full bg-secondary/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-purple-500"
+                    placeholder="Campaign Name"
+                    disabled={isBroadcasting}
+                  />
+                </div>
+
+                {/* Copywriting Tone Selector */}
+                <div className="space-y-1">
+                  <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider">Copywriting Tone</label>
+                  <select
+                    value={selectedTone}
+                    onChange={(e) => setSelectedTone(e.target.value)}
+                    className="w-full bg-secondary/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-purple-500"
+                    disabled={isBroadcasting}
+                  >
+                    <option value="WITTY">Witty (Zomato-Style)</option>
+                    <option value="URGENT">Urgent (FOMO)</option>
+                    <option value="PREMIUM">Premium / Luxury</option>
+                  </select>
+                </div>
+
+                {/* Target Incentives Toggle */}
+                <div className="space-y-1">
+                  <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider">Campaign Incentive</label>
+                  <select
+                    value={selectedIncentive}
+                    onChange={(e) => setSelectedIncentive(e.target.value)}
+                    className="w-full bg-secondary/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-purple-500"
+                    disabled={isBroadcasting}
+                  >
+                    <option value="PERCENTAGE">Percentage Discount (20% Off)</option>
+                    <option value="FLAT">Flat Gift Card ($10 Flat)</option>
+                    <option value="LOYALTY">Loyalty Points (3x Points)</option>
+                  </select>
+                </div>
+
+                {/* Channel Override */}
+                <div className="space-y-1">
+                  <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider">Channel Override</label>
+                  <select
+                    value={editChannel}
+                    onChange={(e) => setEditChannel(e.target.value)}
+                    className="w-full bg-secondary/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-purple-500"
+                    disabled={isBroadcasting}
+                  >
+                    <option value="WHATSAPP">WhatsApp (Simulated)</option>
+                    <option value="EMAIL">Email (Simulated)</option>
+                    <option value="SMS">SMS (Simulated)</option>
+                    <option value="RCS">RCS (Simulated)</option>
+                  </select>
+                </div>
+
+                {/* Message Template Textarea */}
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider">Personalized Copywriter Template</label>
+                    <span className="text-[10px] text-purple-600 font-semibold uppercase tracking-wider animate-pulse">Growth Mode</span>
+                  </div>
+                  <textarea
+                    value={editMessageTemplate}
+                    onChange={(e) => setEditMessageTemplate(e.target.value)}
+                    required
+                    rows={4}
+                    className="w-full bg-secondary/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-purple-500 resize-none font-sans"
+                    placeholder="Draft copy..."
+                    disabled={isBroadcasting}
+                  />
+                  <div className="flex flex-wrap gap-2 pt-1 text-[10px] text-neutral-500 font-medium">
+                    <span>Variables available:</span>
+                    <code>{"{{name}}"}</code>
+                    <code>{"{{last_purchased_item}}"}</code>
+                    <code>{"{{favorite_category}}"}</code>
+                    <code>{"{{total_loyalty_points}}"}</code>
+                  </div>
+                </div>
+
+                {/* Action button */}
+                <div className="flex justify-between items-center pt-4 border-t border-border">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDraftCampaign(prompt || draftCampaign.campaign.promptText || '')}
+                    disabled={isParsing}
+                    className="space-x-1"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Regenerate with AI</span>
+                  </Button>
+
+                  <Button 
+                    onClick={handleApproveAndBroadcast} 
+                    disabled={isBroadcasting || broadcastSuccess || !editCampaignName.trim() || !editMessageTemplate.trim()}
+                    className="space-x-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold shadow-md shadow-purple-600/10"
+                  >
+                    {isBroadcasting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Broadcasting to targets...</span>
+                      </>
+                    ) : broadcastSuccess ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-green-400" />
+                        <span>Campaign Launched!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        <span>Approve & Broadcast Campaign</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+              </CardContent>
+            </Card>
+
+          </div>
+
+          {/* Right Column: The Ad Canvas (Rich Media Preview) - Takes 5 cols */}
           <div className="lg:col-span-5 space-y-6">
             <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
               <Smartphone className="w-3.5 h-3.5 text-neutral-400" />
-              Left Column: The Ad Canvas
+              Right Column: The Ad Canvas
             </h3>
 
             {/* Smartphone Lock Screen */}
@@ -627,15 +859,15 @@ export default function SegmentsPage() {
                 <div className="flex items-center justify-between text-[10px] text-neutral-300 font-bold mb-1.5">
                   <div className="flex items-center gap-1">
                     <div className="w-3 h-3 rounded-md bg-purple-500 flex items-center justify-center text-[7px] text-white">X</div>
-                    <span>XENO CRM</span>
+                    <span>{editChannel} NOTIFICATION</span>
                   </div>
                   <span>now</span>
                 </div>
                 <h4 className="text-xs font-bold text-white mb-0.5 line-clamp-1">
-                  {draftCampaign.copywriteSuite.notificationHeader}
+                  {getCompiledHeader(draftCampaign.copywriteSuite.notificationHeader, selectedTone)}
                 </h4>
                 <p className="text-[10px] text-neutral-200 leading-snug line-clamp-3">
-                  {interpolatePreview(editMessageTemplate)}
+                  {interpolatePreview(getCompiledMessage(editMessageTemplate, selectedTone, selectedIncentive))}
                 </p>
               </div>
             </div>
@@ -727,120 +959,6 @@ export default function SegmentsPage() {
                 </div>
               </div>
             )}
-          </div>
-
-          {/* Right Column: Review & Execution Panel - Takes 7 cols */}
-          <div className="lg:col-span-7 space-y-6">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
-              <Bot className="w-3.5 h-3.5 text-purple-500" />
-              Right Column: Review & Execution Panel
-            </h3>
-
-            {/* Strategic AI Explanation Insight box */}
-            <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-2xl text-purple-900 dark:text-purple-300 text-sm font-medium flex items-start gap-3 shadow-inner">
-              <Bot className="w-5 h-5 text-purple-500 mt-0.5 shrink-0" />
-              <div className="space-y-1">
-                <span className="text-xs font-bold uppercase tracking-wider text-purple-600 block">Agent Campaign Strategy</span>
-                <p className="leading-relaxed">{draftCampaign.explanation}</p>
-              </div>
-            </div>
-
-            {/* Campaign Config Review Form */}
-            <Card className="shadow-lg border border-border">
-              <CardHeader className="pb-4">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">Campaign Editor</CardTitle>
-                  <span className="px-3 py-1 bg-secondary text-foreground rounded-full text-xs font-semibold border border-border flex items-center gap-1">
-                    <Users className="w-3 h-3 text-neutral-400" />
-                    {draftCampaign.customerCount} customers targeted
-                  </span>
-                </div>
-                <CardDescription>Fine-tune the draft details generated by the growth assistant</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Campaign Name */}
-                <div className="space-y-1">
-                  <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider">Campaign Name</label>
-                  <input
-                    type="text"
-                    value={editCampaignName}
-                    onChange={(e) => setEditCampaignName(e.target.value)}
-                    required
-                    className="w-full bg-secondary/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-purple-500"
-                    placeholder="Campaign Name"
-                    disabled={isBroadcasting}
-                  />
-                </div>
-
-                {/* Suggested Channel Selection */}
-                <div className="space-y-1">
-                  <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider">Communication Channel</label>
-                  <select
-                    value={editChannel}
-                    onChange={(e) => setEditChannel(e.target.value)}
-                    className="w-full bg-secondary/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-purple-500"
-                    disabled={isBroadcasting}
-                  >
-                    <option value="WHATSAPP">WhatsApp (Simulated)</option>
-                    <option value="EMAIL">Email (Simulated)</option>
-                    <option value="SMS">SMS (Simulated)</option>
-                    <option value="RCS">RCS (Simulated)</option>
-                  </select>
-                </div>
-
-                {/* Message Template Textarea */}
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider">Personalized Copywriter Template</label>
-                    <span className="text-[10px] text-purple-600 font-semibold uppercase tracking-wider animate-pulse">Growth Mode</span>
-                  </div>
-                  <textarea
-                    value={editMessageTemplate}
-                    onChange={(e) => setEditMessageTemplate(e.target.value)}
-                    required
-                    rows={4}
-                    className="w-full bg-secondary/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-purple-500 resize-none font-sans"
-                    placeholder="Draft copy..."
-                    disabled={isBroadcasting}
-                  />
-                  <div className="flex flex-wrap gap-2 pt-1 text-[10px] text-neutral-500 font-medium">
-                    <span>Variables available:</span>
-                    <code>{"{{name}}"}</code>
-                    <code>{"{{last_purchased_item}}"}</code>
-                    <code>{"{{favorite_category}}"}</code>
-                    <code>{"{{total_loyalty_points}}"}</code>
-                  </div>
-                </div>
-
-                {/* Action button */}
-                <div className="flex justify-end pt-4 border-t border-border">
-                  <Button 
-                    onClick={handleApproveAndBroadcast} 
-                    disabled={isBroadcasting || broadcastSuccess || !editCampaignName.trim() || !editMessageTemplate.trim()}
-                    className="space-x-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold shadow-md shadow-purple-600/10"
-                  >
-                    {isBroadcasting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Broadcasting to targets...</span>
-                      </>
-                    ) : broadcastSuccess ? (
-                      <>
-                        <CheckCircle2 className="w-4 h-4 text-green-400" />
-                        <span>Campaign Launched!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4" />
-                        <span>Approve & Broadcast Campaign</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
-
-              </CardContent>
-            </Card>
-
           </div>
         </div>
       )}
