@@ -253,4 +253,158 @@ router.get('/customers/rfm', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/analytics/dashboard
+ * Dynamic real-time metrics aggregated directly from PostgreSQL database.
+ */
+router.get('/analytics/dashboard', async (req: Request, res: Response) => {
+  try {
+    const [totalCustomers, totalOrders, netSalesAgg] = await Promise.all([
+      prisma.customer.count(),
+      prisma.order.count(),
+      prisma.order.aggregate({
+        _sum: {
+          amount: true
+        }
+      })
+    ]);
+
+    const netSales = netSalesAgg._sum.amount || 0;
+
+    // Calculate repeat rate: percentage of customers who have more than 1 order record.
+    const orderGroups = await prisma.order.groupBy({
+      by: ['customerId'],
+      _count: {
+        _all: true
+      }
+    });
+    const repeatCustomers = orderGroups.filter(g => g._count._all > 1).length;
+    const repeatRate = totalCustomers > 0 ? (repeatCustomers / totalCustomers) * 100 : 0;
+
+    // Recency distribution based on lastVisitDate
+    const now = new Date();
+    const d30 = new Date(); d30.setDate(now.getDate() - 30);
+    const d60 = new Date(); d60.setDate(now.getDate() - 60);
+    const d90 = new Date(); d90.setDate(now.getDate() - 90);
+
+    const [bucket30, bucket60, bucket90, bucketMore] = await Promise.all([
+      prisma.customer.count({
+        where: {
+          lastVisitDate: {
+            gte: d30
+          }
+        }
+      }),
+      prisma.customer.count({
+        where: {
+          lastVisitDate: {
+            lt: d30,
+            gte: d60
+          }
+        }
+      }),
+      prisma.customer.count({
+        where: {
+          lastVisitDate: {
+            lt: d60,
+            gte: d90
+          }
+        }
+      }),
+      prisma.customer.count({
+        where: {
+          OR: [
+            { lastVisitDate: { lt: d90 } },
+            { lastVisitDate: null }
+          ]
+        }
+      })
+    ]);
+
+    // Communications funnel stats
+    const commGroups = await prisma.communication.groupBy({
+      by: ['status'],
+      _count: {
+        id: true
+      }
+    });
+
+    const statusCounts = {
+      PENDING: 0,
+      SENT: 0,
+      DELIVERED: 0,
+      OPENED: 0,
+      CLICKED: 0,
+      FAILED: 0
+    };
+
+    commGroups.forEach(g => {
+      if (g.status in statusCounts) {
+        statusCounts[g.status as keyof typeof statusCounts] = g._count.id;
+      }
+    });
+
+    const totalComm = Object.values(statusCounts).reduce((a, b) => a + b, 0);
+    
+    // Funnel rates
+    const deliveredCount = statusCounts.DELIVERED + statusCounts.OPENED + statusCounts.CLICKED;
+    const openedCount = statusCounts.OPENED + statusCounts.CLICKED;
+    
+    const deliveredPercent = totalComm > 0 ? (deliveredCount / totalComm) * 100 : 0;
+    const openedPercent = totalComm > 0 ? (openedCount / totalComm) * 100 : 0;
+    const failedPercent = totalComm > 0 ? (statusCounts.FAILED / totalComm) * 100 : 0;
+
+    // Order frequency series for micro-chart (past 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const recentOrders = await prisma.order.findMany({
+      where: {
+        createdAt: {
+          gte: sevenDaysAgo
+        }
+      },
+      select: {
+        createdAt: true
+      }
+    });
+
+    const orderFrequencySeries = Array(7).fill(0);
+    recentOrders.forEach(o => {
+      const diffTime = Math.abs(now.getTime() - o.createdAt.getTime());
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays >= 0 && diffDays < 7) {
+        orderFrequencySeries[6 - diffDays]++;
+      }
+    });
+
+    return res.json({
+      success: true,
+      totalCustomers,
+      totalOrders,
+      netSales,
+      repeatRate,
+      recencyDistribution: {
+        '0-30': bucket30,
+        '31-60': bucket60,
+        '61-90': bucket90,
+        '90+': bucketMore
+      },
+      funnel: {
+        sent: totalComm,
+        delivered: deliveredCount,
+        opened: openedCount,
+        clicked: statusCounts.CLICKED,
+        failed: statusCounts.FAILED,
+        deliveredPercent,
+        openedPercent,
+        failedPercent
+      },
+      orderFrequencySeries
+    });
+  } catch (error: any) {
+    console.error('Error generating dashboard analytics:', error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 export default router;
