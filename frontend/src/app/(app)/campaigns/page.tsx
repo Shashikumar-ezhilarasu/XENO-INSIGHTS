@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSharedState } from '../../hooks/useSharedState';
+import { useSharedState } from '../../../hooks/useSharedState';
 import { PlayCircle, Zap, Image as ImageIcon, MessageSquare, Mail, Layers, Send, Loader2, CheckCircle2, AlertCircle, ArrowLeft, ToggleLeft, ToggleRight, Sparkles } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { Button } from '../../components/ui/button';
-import { Badge } from '../../components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
+import { Button } from '../../../components/ui/button';
+import { Badge } from '../../../components/ui/badge';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 

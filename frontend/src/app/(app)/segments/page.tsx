@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSharedState } from "../../hooks/useSharedState";
+import { useSharedState } from "../../../hooks/useSharedState";
 import {
   Sparkles,
   ArrowRight,
@@ -27,7 +27,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "../../components/ui/card";
+} from "../../../components/ui/card";
 import {
   Table,
   TableBody,
@@ -35,8 +35,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "../../components/ui/table";
-import { Button } from "../../components/ui/button";
+} from "../../../components/ui/table";
+import { Button } from "../../../components/ui/button";
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000";
