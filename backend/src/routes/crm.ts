@@ -429,6 +429,72 @@ router.get('/analytics/dashboard', async (req: Request, res: Response) => {
       }
     });
 
+    const recentPurchases = await prisma.order.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 6,
+      include: {
+        customer: {
+          include: {
+            orders: {
+              orderBy: { createdAt: 'desc' },
+              take: 20
+            },
+            _count: {
+              select: { orders: true }
+            }
+          }
+        }
+      }
+    });
+
+    const formattedRecentPurchases = recentPurchases.map(o => {
+      const c = o.customer;
+      const orders = c.orders || [];
+      const categoryCounts: Record<string, number> = {};
+      orders.forEach(ord => {
+        categoryCounts[ord.category] = (categoryCounts[ord.category] || 0) + 1;
+      });
+      let mostPurchasedCategory = c.favoriteCategory || 'None';
+      let maxCount = 0;
+      Object.entries(categoryCounts).forEach(([cat, count]) => {
+        if (count > maxCount) {
+          maxCount = count;
+          mostPurchasedCategory = cat;
+        }
+      });
+
+      return {
+        id: o.id,
+        customerId: o.customerId,
+        amount: o.amount,
+        itemCount: o.itemCount,
+        category: o.category,
+        createdAt: o.createdAt,
+        customer: {
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          phone: c.phone,
+          totalSpends: c.totalSpends,
+          lastVisitDate: c.lastVisitDate,
+          loyaltyPoints: c.loyaltyPoints,
+          favoriteCategory: c.favoriteCategory,
+          discountSeekingBehavior: c.discountSeekingBehavior,
+          preferredShoppingDay: c.preferredShoppingDay,
+          referrerId: c.referrerId,
+          location: c.location,
+          feedback: c.feedback,
+          modeOfPayment: c.modeOfPayment,
+          preferredCommunication: c.preferredCommunication,
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt,
+          orders,
+          mostPurchasedCategory,
+          totalOrdersCount: c._count?.orders || orders.length
+        }
+      };
+    });
+
     return res.json({
       success: true,
       totalCustomers,
@@ -451,7 +517,8 @@ router.get('/analytics/dashboard', async (req: Request, res: Response) => {
         openedPercent,
         failedPercent
       },
-      orderFrequencySeries
+      orderFrequencySeries,
+      recentPurchases: formattedRecentPurchases
     });
   } catch (error: any) {
     console.error('Error generating dashboard analytics:', error);
