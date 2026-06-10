@@ -50,6 +50,11 @@ interface CampaignDraftData {
     stickerEmoji: string;
     primaryCallToAction: string;
   };
+  gamifiedConfig?: {
+    gameType: string;
+    prizePool: string;
+    milestoneTriggerPoints: number;
+  };
 }
 
 const LOADING_STEPS = [
@@ -115,6 +120,62 @@ export default function SegmentsPage() {
   const [editChannel, setEditChannel] = useState('WHATSAPP');
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [broadcastSuccess, setBroadcastSuccess] = useState(false);
+
+  // Interactive Loyalty Game States
+  const [spinDeg, setSpinDeg] = useState(0);
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [spinResult, setSpinResult] = useState<string | null>(null);
+  const [gamifyLoading, setGamifyLoading] = useState(false);
+  const [gamifySuccessMsg, setGamifySuccessMsg] = useState<string | null>(null);
+
+  const handleSpinWheel = async () => {
+    if (isSpinning || !draftCampaign?.gamifiedConfig) return;
+
+    setSpinResult(null);
+    setGamifySuccessMsg(null);
+    
+    const prizes = draftCampaign.gamifiedConfig.prizePool
+      ? draftCampaign.gamifiedConfig.prizePool.split(',').map(p => p.trim())
+      : ['Free Croissant', '50 Points', '10% Off Coupon', 'Free Coffee', 'Try Again', '100 Points'];
+
+    const prizeIndex = Math.floor(Math.random() * prizes.length);
+    const sectorDegree = 360 / prizes.length;
+    // Align wheel so that pointer at top (90 deg relative to conic start at 0 deg) matches prizeIndex
+    const targetDeg = 1800 + (360 - (prizeIndex * sectorDegree)) - (sectorDegree / 2);
+
+    setSpinDeg(targetDeg);
+    setIsSpinning(true);
+
+    setTimeout(async () => {
+      setIsSpinning(false);
+      const wonPrize = prizes[prizeIndex];
+      setSpinResult(wonPrize);
+
+      // Trigger gamification backend update for active customers
+      if (draftCampaign.customerIds && draftCampaign.customerIds.length > 0) {
+        setGamifyLoading(true);
+        try {
+          const targetCustId = draftCampaign.customerIds[0];
+          const updateRes = await fetch(`${BACKEND_URL}/api/loyalty/gamify-event`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              customerId: targetCustId,
+              eventType: 'SPIN_WHEEL'
+            })
+          });
+          if (updateRes.ok) {
+            const data = await updateRes.json();
+            setGamifySuccessMsg(`Successfully credited +50.0 loyalty points to target shopper profile! Total: ${data.currentPoints} pts`);
+          }
+        } catch (err) {
+          console.error('[Gamification Sync] Failed:', err);
+        } finally {
+          setGamifyLoading(false);
+        }
+      }
+    }, 3000);
+  };
 
   // Multi-state loading screen text cycler
   useEffect(() => {
@@ -487,12 +548,6 @@ export default function SegmentsPage() {
                   {interpolatePreview(editMessageTemplate)}
                 </p>
               </div>
-
-              {/* Swipe Up Helper */}
-              <div className="mt-auto text-center space-y-1.5 select-none">
-                <div className="w-24 h-1 bg-white/40 rounded-full mx-auto" />
-                <p className="text-[8px] text-neutral-500 font-bold uppercase tracking-wider">Swipe up to unlock</p>
-              </div>
             </div>
 
             {/* Rich Media Ad Banner Card */}
@@ -519,6 +574,69 @@ export default function SegmentsPage() {
               </div>
             </div>
 
+            {/* Gamified Promo Wheel Preview */}
+            {draftCampaign.gamifiedConfig && (
+              <div className="w-full max-w-[320px] mx-auto space-y-2 pt-4 border-t border-border">
+                <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider block text-center">
+                  Gamified Hook: {draftCampaign.gamifiedConfig.gameType}
+                </span>
+                
+                <div className="bg-secondary/35 border border-border rounded-2xl p-4 flex flex-col items-center space-y-4 shadow-sm relative overflow-hidden">
+                  
+                  {/* Wheel Pointer */}
+                  <div className="absolute top-[58px] z-20 w-4 h-6 bg-red-500" style={{ clipPath: 'polygon(50% 100%, 0 0, 100% 0)' }} />
+
+                  {/* Circular Wheel */}
+                  <div 
+                    className="w-36 h-36 rounded-full border-4 border-neutral-800 shadow-lg relative overflow-hidden flex items-center justify-center"
+                    style={{ 
+                      backgroundImage: 'conic-gradient(from 0deg, #f59e0b 0deg 60deg, #3b82f6 60deg 120deg, #10b981 120deg 180deg, #ef4444 180deg 240deg, #8b5cf6 240deg 300deg, #ec4899 300deg 360deg)',
+                      transform: `rotate(${spinDeg}deg)`,
+                      transition: isSpinning ? 'transform 3000ms cubic-bezier(0.25, 0.1, 0.25, 1)' : 'none'
+                    }}
+                  >
+                    {/* Inner pin */}
+                    <div className="w-8 h-8 rounded-full bg-neutral-800 border-2 border-white z-10 flex items-center justify-center text-[10px] text-white font-bold select-none">
+                      🎯
+                    </div>
+                  </div>
+
+                  {/* Spin Trigger Button */}
+                  <button 
+                    onClick={handleSpinWheel}
+                    disabled={isSpinning}
+                    className="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs rounded-full shadow-md disabled:opacity-50 transition duration-200"
+                  >
+                    {isSpinning ? 'Spinning...' : 'Spin simulated wheel'}
+                  </button>
+
+                  {/* Result Messages */}
+                  {spinResult && (
+                    <div className="text-center space-y-1 animate-scaleUp">
+                      <p className="text-xs font-bold text-foreground">
+                        🎉 You won: <span className="text-purple-600 dark:text-purple-400">{spinResult}</span>!
+                      </p>
+                      <p className="text-[10px] text-neutral-500 font-medium">
+                        Requires {draftCampaign.gamifiedConfig.milestoneTriggerPoints} loyalty points to claim.
+                      </p>
+                    </div>
+                  )}
+
+                  {gamifySuccessMsg && (
+                    <div className="p-2 bg-green-500/10 border border-green-500/20 rounded-lg text-[9px] text-green-600 font-semibold text-center mt-1 animate-fadeIn">
+                      {gamifySuccessMsg}
+                    </div>
+                  )}
+
+                  {gamifyLoading && (
+                    <div className="flex items-center gap-1 text-[9px] text-neutral-500">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Updating shopper points...</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Right Column: Review & Execution Panel - Takes 7 cols */}
