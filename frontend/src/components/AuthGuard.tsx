@@ -56,6 +56,10 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     setIsAuthenticated(false);
     localStorage.removeItem('xeno_authenticated');
     localStorage.removeItem('xeno_onboarded');
+    localStorage.removeItem('xeno_business_name');
+    localStorage.removeItem('xeno_business_industry');
+    localStorage.removeItem('xeno_main_product');
+    localStorage.removeItem('xeno_db_uri');
     setUsername('');
     setPassword('');
   };
