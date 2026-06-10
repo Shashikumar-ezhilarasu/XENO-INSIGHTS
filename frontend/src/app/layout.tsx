@@ -1,9 +1,6 @@
 import './globals.css';
 import React from 'react';
-import Sidebar from '../components/shared/sidebar';
-import Navigation from '../components/shared/navigation';
 import { SharedStateProvider } from '../hooks/useSharedState';
-import AuthGuard from '../components/AuthGuard';
 
 export const metadata = {
   title: 'XENO AI SaaS Marketing CRM',
@@ -24,23 +21,7 @@ export default function RootLayout({
       </head>
       <body className="font-sans antialiased bg-background text-foreground selection:bg-foreground selection:text-background min-h-screen">
         <SharedStateProvider>
-          <AuthGuard>
-            <div className="flex min-h-screen">
-              {/* Persistent Sidebar */}
-              <Sidebar />
-              
-              {/* Main Content Area */}
-              <div className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
-                {/* Top Navigation */}
-                <Navigation />
-                
-                {/* Page Content */}
-                <main className="flex-1 p-8 bg-background">
-                  {children}
-                </main>
-              </div>
-            </div>
-          </AuthGuard>
+          {children}
         </SharedStateProvider>
       </body>
     </html>
