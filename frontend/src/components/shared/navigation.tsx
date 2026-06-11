@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Sun, Moon, RefreshCw, ShieldCheck, Globe } from 'lucide-react';
+import { Sun, Moon, RefreshCw, ShieldCheck, Globe, HelpCircle } from 'lucide-react';
 import { useSharedState } from '../../hooks/useSharedState';
+import TourModal from '../TourModal';
 
 export default function Navigation() {
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
@@ -69,12 +70,24 @@ export default function Navigation() {
           {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
 
+        {/* Help / Tour Button */}
+        <button
+          onClick={() => window.dispatchEvent(new Event('open-tour'))}
+          className="p-2 text-neutral-500 hover:text-foreground rounded-lg hover:bg-secondary transition flex items-center gap-1.5 font-medium text-xs"
+          title="Take the Tour"
+        >
+          <HelpCircle className="w-4 h-4" />
+          <span className="hidden sm:inline">Help</span>
+        </button>
+
         {/* Sync Indicator */}
         <div className="flex items-center space-x-2 border-l border-border pl-4 h-5">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           <span className="text-xs text-neutral-500 font-mono font-semibold">STABLE</span>
         </div>
       </div>
+      
+      <TourModal />
     </header>
   );
 }
