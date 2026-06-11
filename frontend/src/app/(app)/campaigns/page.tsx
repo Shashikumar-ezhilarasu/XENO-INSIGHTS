@@ -6,6 +6,8 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+
 interface ChatMessage {
   role: 'user' | 'model';
   content: string;
@@ -15,6 +17,8 @@ interface ChatMessage {
     channel: string;
     messageCopy: string;
     incentive: string;
+    audienceSize?: number;
+    customerIds?: string[];
   } | null;
 }
 
@@ -53,7 +57,7 @@ export default function CampaignAgentPage() {
     setIsLoading(true);
 
     try {
-      const res = await fetch('http://localhost:3000/api/ai/orchestrate-campaign', {
+      const res = await fetch(`${BACKEND_URL}/api/ai/orchestrate-campaign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chatHistory: newChatHistory }),
@@ -62,10 +66,30 @@ export default function CampaignAgentPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to get AI response');
 
+      let finalProposedCampaign = data.proposedCampaign || null;
+
+      if (finalProposedCampaign) {
+        // Query the live Postgres database via NL-to-SQL logic
+        try {
+          const segRes = await fetch(`${BACKEND_URL}/api/ai/segment`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ promptText: finalProposedCampaign.targetSegment }),
+          });
+          const segData = await segRes.json();
+          if (segRes.ok && segData.success) {
+            finalProposedCampaign.audienceSize = segData.audienceSize;
+            finalProposedCampaign.customerIds = segData.customers.map((c: any) => c.id);
+          }
+        } catch (e) {
+          console.warn("Failed to pull live segment metrics", e);
+        }
+      }
+
       const modelMessage: ChatMessage = {
         role: 'model',
         content: data.agentReply,
-        proposedCampaign: data.proposedCampaign || null,
+        proposedCampaign: finalProposedCampaign,
       };
 
       setMessages((prev) => [...prev, modelMessage]);
@@ -80,8 +104,8 @@ export default function CampaignAgentPage() {
   const handleExecuteCampaign = async (campaign: NonNullable<ChatMessage['proposedCampaign']>) => {
     setIsExecuting(true);
     try {
-      // 1. Create the Campaign Record
-      const createRes = await fetch('http://localhost:3000/api/campaigns', {
+      // 1. Create the Campaign Record using actual live audience size
+      const createRes = await fetch(`${BACKEND_URL}/api/campaigns`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -89,20 +113,20 @@ export default function CampaignAgentPage() {
           promptText: campaign.targetSegment,
           messageTemplate: campaign.messageCopy,
           channel: campaign.channel,
-          audienceSize: Math.floor(Math.random() * 500) + 100 // Mock audience size for now
+          audienceSize: campaign.audienceSize || 0
         })
       });
       
       const createData = await createRes.json();
       if (!createRes.ok) throw new Error(createData.error);
 
-      // 2. Dispatch the simulated messages
-      const sendRes = await fetch('http://localhost:3000/api/campaigns/send', {
+      // 2. Dispatch the simulated messages using the actual real customer IDs fetched via SQL
+      const sendRes = await fetch(`${BACKEND_URL}/api/campaigns/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           campaignId: createData.id,
-          customerIds: ["mock-id-1", "mock-id-2", "mock-id-3"] // We mock this to avoid heavy querying in the demo
+          customerIds: campaign.customerIds || []
         })
       });
 
@@ -185,7 +209,12 @@ export default function CampaignAgentPage() {
                         </div>
                         <div className="space-y-1 col-span-2">
                           <span className="text-[10px] uppercase font-bold text-neutral-500">Target Segment</span>
-                          <p className="text-sm font-medium text-purple-400">{msg.proposedCampaign.targetSegment}</p>
+                          <p className="text-sm font-medium text-purple-400">
+                            {msg.proposedCampaign.targetSegment}
+                            {msg.proposedCampaign.audienceSize !== undefined && (
+                               <span className="text-neutral-400 ml-1 font-normal">({msg.proposedCampaign.audienceSize} customers found)</span>
+                            )}
+                          </p>
                         </div>
                         <div className="space-y-1 col-span-2">
                           <span className="text-[10px] uppercase font-bold text-neutral-500">Incentive</span>
@@ -201,7 +230,7 @@ export default function CampaignAgentPage() {
                       <div className="pt-2">
                         <Button 
                           onClick={() => handleExecuteCampaign(msg.proposedCampaign!)}
-                          disabled={isExecuting || executionSuccess}
+                          disabled={isExecuting || executionSuccess || (msg.proposedCampaign?.audienceSize === 0)}
                           className={`w-full font-bold shadow-lg transition-all ${
                             executionSuccess ? 'bg-green-600 hover:bg-green-700' : 'bg-purple-600 hover:bg-purple-700'
                           }`}

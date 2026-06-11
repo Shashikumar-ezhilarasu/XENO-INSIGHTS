@@ -92,7 +92,8 @@ router.post('/segment', aiSegmentRateLimiter, validateAiSegment, async (req: Req
     console.log(`Analyzing segment prompt: "${promptText}"`);
     const prompt = `Analyze this prompt and generate the database query: "${promptText}"`;
     const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
+    let responseText = result.response.text();
+    responseText = responseText.replace(/```json\n?|```/g, '').trim();
 
     let queryData;
     try {
@@ -281,7 +282,8 @@ Also provide 3 distinct, tailored campaign ideas they could run using the CRM.`;
     });
 
     const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
+    let responseText = result.response.text();
+    responseText = responseText.replace(/```json\n?|```/g, '').trim();
 
     return res.json(JSON.parse(responseText));
   } catch (error: any) {
@@ -354,7 +356,8 @@ Based on the LAST message from the USER, generate your response.`;
     });
 
     const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
+    let responseText = result.response.text();
+    responseText = responseText.replace(/```json\n?|```/g, '').trim();
 
     return res.json(JSON.parse(responseText));
   } catch (error: any) {
