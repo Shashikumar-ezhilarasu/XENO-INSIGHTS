@@ -10,7 +10,7 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   const navItems = [
-    { name: 'Overview', href: '/', icon: LayoutDashboard },
+    { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
     { name: 'AI Segments', href: '/segments', icon: Users },
     { name: 'Campaign Manager', href: '/campaigns', icon: Send },
     { name: 'Gamification Studio', href: '/gamification', icon: Trophy },
