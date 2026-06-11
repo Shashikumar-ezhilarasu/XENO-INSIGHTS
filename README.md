@@ -117,7 +117,16 @@ npm run prisma:seed
 npm run dev
 ```
 
-### 4. Frontend Launch
+### 4. Channel Service Setup
+XENO-INSIGHTS includes a standalone microservice to simulate delivery loops and failures. In a new terminal window:
+```bash
+cd channel-service
+npm install
+npm run build
+npm start # Runs on port 3002
+```
+
+### 5. Frontend Launch
 In a new terminal window, navigate to the `frontend` directory:
 
 ```bash
