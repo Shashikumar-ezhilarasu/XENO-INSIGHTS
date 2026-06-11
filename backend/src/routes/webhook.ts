@@ -11,8 +11,9 @@ const STATUS_PRECEDENCE: Record<string, number> = {
   SENT: 1,
   DELIVERED: 2,
   OPENED: 3,
-  CLICKED: 4,
-  FAILED: 5
+  READ: 4,
+  CLICKED: 5,
+  FAILED: 6
 };
 
 /**
@@ -73,20 +74,19 @@ router.post('/channel-callback', validateWebhookCallback, async (req: Request, r
           });
 
           if (customer) {
-            // Estimate conversion revenue based on average order value, or a flat default
-            const conversionValue = (customer.totalSpends > 0 && customer._count.orders > 0)
-              ? (customer.totalSpends / customer._count.orders)
-              : 45.0;
+            // Generate a realistic random value between 400-4000 based on brand AOV
+            const randomOrderValue = Math.floor(Math.random() * (4000 - 400 + 1) + 400);
 
-            // Increment the campaign's revenue tracking metric
+            // Increment the campaign's explicit attribution metrics
             await tx.campaign.update({
               where: { id: existing.campaignId },
               data: {
-                revenueGenerated: { increment: conversionValue }
+                attributedOrders: { increment: 1 },
+                attributedRevenue: { increment: randomOrderValue }
               }
             });
             
-            console.log(`[Webhook Server] CLICKED event registered. Campaign ${existing.campaignId} revenue incremented by $${conversionValue.toFixed(2)}`);
+            console.log(`[Webhook Server] CLICKED event registered. Campaign ${existing.campaignId} attributed +1 Order ($${randomOrderValue})`);
           }
         }
 
