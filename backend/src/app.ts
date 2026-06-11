@@ -13,6 +13,7 @@ import triggersRouter from './routes/triggers';
 import aiAgentRouter from './routes/aiAgent';
 import offersRouter from './routes/offers';
 import loyaltyRouter from './routes/loyalty';
+import ingestRouter from './routes/ingest';
 import { initCron } from './config/cron';
 
 // Load environment variables
@@ -43,6 +44,7 @@ app.use('/api/campaigns', campaignRouter);
 app.use('/api/stub', stubChannelRouter);
 app.use('/api/webhooks', webhookRouter);
 app.use('/api/triggers', triggersRouter);
+app.use('/api/ingest', ingestRouter);
 
 // Health check endpoint (including database connection status check)
 app.get('/health', async (req: Request, res: Response) => {
