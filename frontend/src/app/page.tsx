@@ -53,7 +53,10 @@ export default function HomePage() {
         
         <div className="pt-8 pb-16">
           <Button 
-            onClick={() => router.push('/dashboard')}
+            onClick={() => {
+              localStorage.removeItem('xeno_has_seen_tour');
+              router.push('/dashboard');
+            }}
             size="lg"
             className="rounded-full bg-white text-black hover:bg-neutral-200 hover:scale-105 transition-all duration-300 px-8 py-6 text-lg font-bold shadow-[0_0_40px_rgba(132,0,255,0.4)]"
           >
