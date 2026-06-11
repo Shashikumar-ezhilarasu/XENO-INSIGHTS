@@ -64,6 +64,32 @@ router.post('/channel-callback', validateWebhookCallback, async (req: Request, r
             errorMsg: errorMsg || null
           }
         });
+
+        // REVENUE TRACKING: When a link is clicked, simulate a conversion
+        if (upperStatus === 'CLICKED') {
+          const customer = await tx.customer.findUnique({
+            where: { id: existing.customerId },
+            include: { _count: { select: { orders: true } } }
+          });
+
+          if (customer) {
+            // Estimate conversion revenue based on average order value, or a flat default
+            const conversionValue = (customer.totalSpends > 0 && customer._count.orders > 0)
+              ? (customer.totalSpends / customer._count.orders)
+              : 45.0;
+
+            // Increment the campaign's revenue tracking metric
+            await tx.campaign.update({
+              where: { id: existing.campaignId },
+              data: {
+                revenueGenerated: { increment: conversionValue }
+              }
+            });
+            
+            console.log(`[Webhook Server] CLICKED event registered. Campaign ${existing.campaignId} revenue incremented by $${conversionValue.toFixed(2)}`);
+          }
+        }
+
         return { updated: true, record: updated };
       }
 
