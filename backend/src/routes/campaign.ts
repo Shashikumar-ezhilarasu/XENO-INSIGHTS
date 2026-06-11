@@ -194,19 +194,26 @@ router.post('/send', campaignSendRateLimiter, validateCampaignSend, async (req: 
     // If the campaign has Variant B template, split recipients 50% variant A, 50% variant B.
     const isABTest = Boolean(campaign.messageTemplateB);
 
-    // Dynamic Channel Routing Helper
+    // Least-Cost Smart Routing Optimizer
+    // Automatically maximizes ROAS by routing high-value VIPs to premium channels
+    // while shifting standard discount-seeking customers to lower-cost email/SMS channels.
     const getChannelForCustomer = (customer: any): string => {
-      const category = customer.favoriteCategory || 'Coffee';
-      const day = customer.preferredShoppingDay || 'Saturday';
+      // Calculate Average Transactional Value
+      const numOrders = customer.orders ? customer.orders.length : 0;
+      const avgTransactionalValue = numOrders > 0 ? (customer.totalSpends / numOrders) : 0;
+      
+      const discountBehavior = customer.discountSeekingBehavior || 'MID';
 
-      if (category === 'Coffee') {
-        return day === 'Saturday' ? 'WHATSAPP' : 'SMS';
-      } else if (category === 'Bakery') {
-        return 'RCS';
-      } else if (category === 'Apparel' || category === 'Beauty') {
-        return 'EMAIL';
+      // VIP Criteria: Spends > $40 on average OR never actively seeks discounts
+      const isVip = avgTransactionalValue > 40 || discountBehavior === 'LOW';
+
+      if (isVip) {
+        // Premium touchpoints for VIPs
+        const category = customer.favoriteCategory || 'Coffee';
+        return category === 'Bakery' ? 'RCS' : 'WHATSAPP';
       } else {
-        return 'SMS';
+        // Standard/Discount-seeker margin protection (Low-cost channels)
+        return discountBehavior === 'HIGH' ? 'EMAIL' : 'SMS';
       }
     };
 
