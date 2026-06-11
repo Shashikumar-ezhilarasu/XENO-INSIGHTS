@@ -534,8 +534,7 @@ const MagicBento: React.FC<BentoProps> = ({
 
   return (
     <>
-      <style>
-        {`
+      <style dangerouslySetInnerHTML={{ __html: `
           .bento-section {
             --glow-x: 50%;
             --glow-y: 50%;
@@ -659,8 +658,7 @@ const MagicBento: React.FC<BentoProps> = ({
               min-height: 180px;
             }
           }
-        `}
-      </style>
+      `}} />
 
       {enableSpotlight && (
         <GlobalSpotlight
