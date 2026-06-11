@@ -57,7 +57,8 @@ model Campaign {
   channel         String          // "WHATSAPP" | "EMAIL" | "SMS" | "RCS"
   status          String          @default("PENDING")
   autoSplit       Boolean         @default(false)
-  revenueGenerated Float          @default(0.0)
+  attributedOrders Int            @default(0)
+  attributedRevenue Float         @default(0.0)
   createdAt       DateTime        @default(now())
   communications  Communication[]
   triggers        Trigger[]

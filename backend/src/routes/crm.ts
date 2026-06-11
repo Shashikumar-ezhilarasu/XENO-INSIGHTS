@@ -136,6 +136,7 @@ router.get('/analytics', async (req: Request, res: Response) => {
           SENT: 0,
           DELIVERED: 0,
           OPENED: 0,
+          READ: 0,
           CLICKED: 0,
           FAILED: 0
         };
@@ -144,12 +145,13 @@ router.get('/analytics', async (req: Request, res: Response) => {
     }
 
     const analytics = campaigns.map((campaign) => {
-      const getVariantStats = (v: string) => {
+      const getVariantStats = (v: string): any => {
         const counts = countMap[campaign.id]?.[v] || {
           PENDING: 0,
           SENT: 0,
           DELIVERED: 0,
           OPENED: 0,
+          READ: 0,
           CLICKED: 0,
           FAILED: 0
         };
@@ -158,6 +160,7 @@ router.get('/analytics', async (req: Request, res: Response) => {
         const sent = counts.SENT || 0;
         const delivered = counts.DELIVERED || 0;
         const opened = counts.OPENED || 0;
+        const read = counts.READ || 0;
         const clicked = counts.CLICKED || 0;
         const failed = counts.FAILED || 0;
 
@@ -183,7 +186,7 @@ router.get('/analytics', async (req: Request, res: Response) => {
 
         return {
           totalMessages,
-          statusCounts: { pending, sent, delivered, opened, clicked, failed },
+          statusCounts: { pending, sent, delivered, opened, read, clicked, failed },
           rates: {
             deliveryRatePercent: deliveryRate,
             openRatePercent: openRate,
@@ -200,6 +203,7 @@ router.get('/analytics', async (req: Request, res: Response) => {
       const pending = statsA.statusCounts.pending + statsB.statusCounts.pending;
       const sent = statsA.statusCounts.sent + statsB.statusCounts.sent;
       const delivered = statsA.statusCounts.delivered + statsB.statusCounts.delivered;
+      const read = statsA.statusCounts.read + statsB.statusCounts.read;
       const opened = statsA.statusCounts.opened + statsB.statusCounts.opened;
       const clicked = statsA.statusCounts.clicked + statsB.statusCounts.clicked;
       const failed = statsA.statusCounts.failed + statsB.statusCounts.failed;
@@ -223,7 +227,7 @@ router.get('/analytics', async (req: Request, res: Response) => {
         buttons: campaign.buttons || null,
         createdAt: campaign.createdAt,
         totalMessages,
-        statusCounts: { pending, sent, delivered, opened, clicked, failed },
+        statusCounts: { pending, sent, delivered, opened, read, clicked, failed },
         rates: {
           deliveryRatePercent: deliveryRate,
           openRatePercent: openRate,
@@ -386,6 +390,7 @@ router.get('/analytics/dashboard', async (req: Request, res: Response) => {
       SENT: 0,
       DELIVERED: 0,
       OPENED: 0,
+      READ: 0,
       CLICKED: 0,
       FAILED: 0
     };
@@ -399,8 +404,9 @@ router.get('/analytics/dashboard', async (req: Request, res: Response) => {
     const totalComm = Object.values(statusCounts).reduce((a, b) => a + b, 0);
     
     // Funnel rates
-    const deliveredCount = statusCounts.DELIVERED + statusCounts.OPENED + statusCounts.CLICKED;
-    const openedCount = statusCounts.OPENED + statusCounts.CLICKED;
+    const deliveredCount = statusCounts.DELIVERED + statusCounts.OPENED + statusCounts.READ + statusCounts.CLICKED;
+    const openedCount = statusCounts.OPENED + statusCounts.READ + statusCounts.CLICKED;
+    const readCount = statusCounts.READ + statusCounts.CLICKED;
     
     const deliveredPercent = totalComm > 0 ? (deliveredCount / totalComm) * 100 : 0;
     const openedPercent = totalComm > 0 ? (openedCount / totalComm) * 100 : 0;

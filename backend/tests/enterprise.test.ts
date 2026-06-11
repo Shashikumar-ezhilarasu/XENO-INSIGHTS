@@ -113,7 +113,7 @@ describe('CDP Enterprise Engine - Integration Verification Suite', () => {
       const updatedCampaign = await prisma.campaign.findUnique({
         where: { id: campaign.id }
       });
-      expect(updatedCampaign?.revenueGenerated).toBeGreaterThan(0);
+      expect(updatedCampaign?.attributedRevenue).toBeGreaterThan(0);
     });
   });
 });
