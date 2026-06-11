@@ -21,8 +21,8 @@ const STATUS_PRECEDENCE: Record<string, number> = {
  * Consumes real-time webhook updates from the mock channel.
  * Body: { communicationId: string, status: string, errorMsg?: string, timestamp: string }
  */
-router.post('/channel-callback', validateWebhookCallback, async (req: Request, res: Response) => {
-  const { communicationId, status, errorMsg } = req.body;
+router.post('/receipt', validateWebhookCallback, async (req: Request, res: Response) => {
+  const { communicationId, status, errorMsg, orderValue } = req.body;
 
   if (!communicationId || !status) {
     return res.status(400).json({ error: 'communicationId and status are required fields.' });
@@ -74,19 +74,19 @@ router.post('/channel-callback', validateWebhookCallback, async (req: Request, r
           });
 
           if (customer) {
-            // Generate a realistic random value between 400-4000 based on brand AOV
-            const randomOrderValue = Math.floor(Math.random() * (4000 - 400 + 1) + 400);
+            // Use provided orderValue or generate a realistic random value between 400-4000
+            const finalOrderValue = orderValue ? parseFloat(orderValue) : Math.floor(Math.random() * (4000 - 400 + 1) + 400);
 
             // Increment the campaign's explicit attribution metrics
             await tx.campaign.update({
               where: { id: existing.campaignId },
               data: {
                 attributedOrders: { increment: 1 },
-                attributedRevenue: { increment: randomOrderValue }
+                attributedRevenue: { increment: finalOrderValue }
               }
             });
             
-            console.log(`[Webhook Server] CLICKED event registered. Campaign ${existing.campaignId} attributed +1 Order ($${randomOrderValue})`);
+            console.log(`[Webhook Server] CLICKED event registered. Campaign ${existing.campaignId} attributed +1 Order ($${finalOrderValue})`);
           }
         }
 

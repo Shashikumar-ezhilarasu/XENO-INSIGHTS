@@ -14,6 +14,7 @@ import offersRouter from './routes/offers';
 import loyaltyRouter from './routes/loyalty';
 import ingestRouter from './routes/ingest';
 import channelRouter from './routes/channel';
+import swarmRouter from './routes/swarm';
 import { initCron } from './config/cron';
 
 // Load environment variables
@@ -45,6 +46,7 @@ app.use('/api/webhooks', webhookRouter);
 app.use('/api/triggers', triggersRouter);
 app.use('/api/ingest', ingestRouter);
 app.use('/api/channel', channelRouter);
+app.use('/api/ai', swarmRouter);
 
 // Health check endpoint (including database connection status check)
 app.get('/health', async (req: Request, res: Response) => {

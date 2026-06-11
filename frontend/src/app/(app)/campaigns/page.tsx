@@ -1,293 +1,274 @@
-'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Sparkles, CheckCircle2, Loader2, ArrowRight } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { useRouter } from 'next/navigation';
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
-interface ChatMessage {
-  role: 'user' | 'model';
-  content: string;
-  proposedCampaign?: {
-    name: string;
-    targetSegment: string;
-    channel: string;
-    messageCopy: string;
-    incentive: string;
-    audienceSize?: number;
-    customerIds?: string[];
-  } | null;
-}
+export default function ClassicWizard() {
+  const [step, setStep] = useState(1);
 
-export default function CampaignAgentPage() {
-  const router = useRouter();
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: 'model',
-      content: "Hi! I'm your XENO Campaign AI. What are we trying to achieve today? You can say something like, 'I want to boost weekend sales' or 'Let's re-engage users who haven't bought coffee in 30 days.'",
-    }
-  ]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isExecuting, setIsExecuting] = useState(false);
-  const [executionSuccess, setExecutionSuccess] = useState(false);
-  
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Step 1: Audience
+  const [nlQuery, setNlQuery] = useState('');
+  const [isBuildingAudience, setIsBuildingAudience] = useState(false);
+  const [segmentData, setSegmentData] = useState<any>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  // Step 2: Message
+  const [channel, setChannel] = useState('WHATSAPP');
+  const [messageBody, setMessageBody] = useState('');
+  const [isDrafting, setIsDrafting] = useState(false);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  // Step 3: Review
+  const [isDispatching, setIsDispatching] = useState(false);
+  const [dispatchProgress, setDispatchProgress] = useState(0);
 
-  const handleSendMessage = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!input.trim() || isLoading) return;
-
-    const userMessage: ChatMessage = { role: 'user', content: input.trim() };
-    const newChatHistory = [...messages, userMessage];
-    
-    setMessages(newChatHistory);
-    setInput('');
-    setIsLoading(true);
-
+  const buildAudience = async () => {
+    setIsBuildingAudience(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/ai/orchestrate-campaign`, {
+      const res = await fetch(`${BACKEND_URL}/api/ai/segment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatHistory: newChatHistory }),
+        body: JSON.stringify({ query: nlQuery })
       });
-
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to get AI response');
-
-      let finalProposedCampaign = data.proposedCampaign || null;
-
-      if (finalProposedCampaign) {
-        // Query the live Postgres database via NL-to-SQL logic
-        try {
-          const segRes = await fetch(`${BACKEND_URL}/api/ai/segment`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ promptText: finalProposedCampaign.targetSegment }),
-          });
-          const segData = await segRes.json();
-          if (segRes.ok && segData.success) {
-            finalProposedCampaign.audienceSize = segData.audienceSize;
-            finalProposedCampaign.customerIds = segData.customers.map((c: any) => c.id);
-          }
-        } catch (e) {
-          console.warn("Failed to pull live segment metrics", e);
-        }
+      
+      if (data.sqlQuery) {
+        const previewRes = await fetch(`${BACKEND_URL}/api/segments/preview?query=${encodeURIComponent(data.sqlQuery)}`);
+        const previewData = await previewRes.json();
+        setSegmentData({ ...data, preview: previewData });
       }
-
-      const modelMessage: ChatMessage = {
-        role: 'model',
-        content: data.agentReply,
-        proposedCampaign: finalProposedCampaign,
-      };
-
-      setMessages((prev) => [...prev, modelMessage]);
-    } catch (error) {
-      console.error(error);
-      setMessages((prev) => [...prev, { role: 'model', content: "Sorry, I ran into an issue connecting to my brain. Let's try that again." }]);
-    } finally {
-      setIsLoading(false);
+    } catch (err) {
+      console.error(err);
     }
+    setIsBuildingAudience(false);
   };
 
-  const handleExecuteCampaign = async (campaign: NonNullable<ChatMessage['proposedCampaign']>) => {
-    setIsExecuting(true);
+  const draftMessage = async () => {
+    setIsDrafting(true);
     try {
-      // 1. Create the Campaign Record using actual live audience size
-      const createRes = await fetch(`${BACKEND_URL}/api/campaigns`, {
+      const res = await fetch(`${BACKEND_URL}/api/ai/draft-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          segmentSummary: nlQuery, 
+          channel,
+          goal: 'Engagement'
+        })
+      });
+      const data = await res.json();
+      setMessageBody(data.body || data.message || 'Hi {{name}}, here is a special offer!');
+    } catch (err) {
+      console.error(err);
+      setMessageBody('Hi {{name}}, here is a special offer!');
+    }
+    setIsDrafting(false);
+  };
+
+  const handleSend = async () => {
+    setIsDispatching(true);
+    setDispatchProgress(10);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/campaigns/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: campaign.name,
-          promptText: campaign.targetSegment,
-          messageTemplate: campaign.messageCopy,
-          channel: campaign.channel,
-          audienceSize: campaign.audienceSize || 0
+          name: `Campaign: ${nlQuery}`,
+          channel,
+          audienceSize: segmentData?.preview?.count || 0,
+          message: { body: messageBody, subject: 'Update' },
+          segmentFilters: { raw: nlQuery }
         })
       });
-      
-      const createData = await createRes.json();
-      if (!createRes.ok) throw new Error(createData.error);
-
-      // 2. Dispatch the simulated messages using the actual real customer IDs fetched via SQL
-      const sendRes = await fetch(`${BACKEND_URL}/api/campaigns/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          campaignId: createData.id,
-          customerIds: campaign.customerIds || []
-        })
-      });
-
-      if (!sendRes.ok) throw new Error('Failed to dispatch campaign.');
-
-      setExecutionSuccess(true);
-      
-      setTimeout(() => {
-        router.push('/analytics');
-      }, 2000);
-
-    } catch (error) {
-      console.error('Execution failed:', error);
-      // Even if offline fallback fails, show success for the demo flow
-      setExecutionSuccess(true);
-      setTimeout(() => {
-        router.push('/analytics');
-      }, 2000);
-    } finally {
-      setIsExecuting(false);
+      if (res.ok) {
+        setDispatchProgress(100);
+        setTimeout(() => {
+          window.location.href = '/analytics';
+        }, 1500);
+      }
+    } catch (err) {
+      console.error(err);
+      setIsDispatching(false);
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto h-[calc(100vh-8rem)] flex flex-col bg-card border border-border rounded-2xl shadow-xl overflow-hidden animate-fadeIn">
-      {/* Header */}
-      <div className="bg-secondary/50 border-b border-border p-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center justify-center text-purple-500">
-            <Sparkles className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="font-bold text-foreground">Campaign AI Agent</h2>
-            <p className="text-xs text-neutral-500">Brainstorm & Execute</p>
-          </div>
+    <div className="max-w-4xl mx-auto py-8 px-4 space-y-8">
+      <div className="flex items-center justify-between border-b border-border pb-4">
+        <h1 className="text-3xl font-bold tracking-tight">Campaign Builder</h1>
+        <div className="flex items-center space-x-2 text-sm font-medium">
+          <span className={step >= 1 ? 'text-primary' : 'text-muted-foreground'}>1. Audience</span>
+          <span className="text-border">→</span>
+          <span className={step >= 2 ? 'text-primary' : 'text-muted-foreground'}>2. Message</span>
+          <span className="text-border">→</span>
+          <span className={step >= 3 ? 'text-primary' : 'text-muted-foreground'}>3. Review</span>
         </div>
       </div>
 
-      {/* Chat Area */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-background/50">
-        {messages.map((msg, idx) => (
-          <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1 ${
-              msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-purple-600 text-white'
-            }`}>
-              {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
-            </div>
-            
-            <div className={`flex flex-col max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-              <div className={`p-4 rounded-2xl text-sm ${
-                msg.role === 'user' 
-                  ? 'bg-blue-600 text-white rounded-tr-none shadow-md' 
-                  : 'bg-secondary text-foreground rounded-tl-none border border-border shadow-sm'
-              }`}>
-                {msg.content}
+      {step === 1 && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+          <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
+            <h2 className="text-xl font-semibold">Who are we targeting?</h2>
+            <textarea
+              value={nlQuery}
+              onChange={e => setNlQuery(e.target.value)}
+              placeholder="E.g. Customers who haven't ordered in 60 days"
+              className="w-full bg-background border border-border rounded-lg p-3 outline-none focus:border-primary transition-colors resize-none"
+              rows={3}
+            />
+            <button 
+              onClick={buildAudience}
+              disabled={isBuildingAudience || !nlQuery}
+              className="px-4 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-lg font-medium disabled:opacity-50"
+            >
+              {isBuildingAudience ? 'Querying DB...' : 'Generate Audience'}
+            </button>
+
+            {segmentData && segmentData.preview && (
+              <div className="mt-6 pt-6 border-t border-border animate-in fade-in">
+                <div className="flex items-center space-x-2 text-green-600 font-semibold mb-4">
+                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                  <span>{segmentData.preview.count} customers match this segment</span>
+                </div>
+                
+                <div className="bg-background rounded-lg border border-border overflow-hidden">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-secondary text-muted-foreground">
+                      <tr>
+                        <th className="px-4 py-2">Name</th>
+                        <th className="px-4 py-2">Last Order</th>
+                        <th className="px-4 py-2">Total Spend</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {segmentData.preview.sample.map((c: any, i: number) => (
+                        <tr key={i} className="border-b border-border/50 last:border-0">
+                          <td className="px-4 py-2">{c.name}</td>
+                          <td className="px-4 py-2">{new Date(c.lastOrderDate).toLocaleDateString()}</td>
+                          <td className="px-4 py-2">${c.totalSpend.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-6 flex justify-end">
+                  <button onClick={() => setStep(2)} className="px-6 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg font-medium shadow-md shadow-primary/20">
+                    Use this segment →
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
+
+      {step === 2 && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 gap-8">
+          <div className="space-y-6">
+            <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
+              <h2 className="text-xl font-semibold">Compose Message</h2>
+              
+              <div className="flex space-x-2">
+                {['WHATSAPP', 'SMS', 'EMAIL'].map(c => (
+                  <button 
+                    key={c}
+                    onClick={() => setChannel(c)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${channel === c ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'}`}
+                  >
+                    {c}
+                  </button>
+                ))}
               </div>
 
-              {/* Proposal Card Rendering */}
-              {msg.proposedCampaign && (
-                <div className="mt-4 w-full animate-scaleUp">
-                  <Card className="border-purple-500/30 shadow-lg shadow-purple-500/5 bg-gradient-to-b from-card to-purple-950/10">
-                    <CardHeader className="pb-3 border-b border-border/50">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-purple-500" />
-                        Campaign Proposal
-                      </CardTitle>
-                      <CardDescription>Review the details before launching.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-4 space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <span className="text-[10px] uppercase font-bold text-neutral-500">Campaign Name</span>
-                          <p className="text-sm font-semibold">{msg.proposedCampaign.name}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-[10px] uppercase font-bold text-neutral-500">Channel</span>
-                          <span className="inline-block px-2 py-0.5 bg-secondary rounded text-xs font-bold border border-border">
-                            {msg.proposedCampaign.channel}
-                          </span>
-                        </div>
-                        <div className="space-y-1 col-span-2">
-                          <span className="text-[10px] uppercase font-bold text-neutral-500">Target Segment</span>
-                          <p className="text-sm font-medium text-purple-400">
-                            {msg.proposedCampaign.targetSegment}
-                            {msg.proposedCampaign.audienceSize !== undefined && (
-                               <span className="text-neutral-400 ml-1 font-normal">({msg.proposedCampaign.audienceSize} customers found)</span>
-                            )}
-                          </p>
-                        </div>
-                        <div className="space-y-1 col-span-2">
-                          <span className="text-[10px] uppercase font-bold text-neutral-500">Incentive</span>
-                          <p className="text-sm font-bold text-green-400">{msg.proposedCampaign.incentive}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="p-3 bg-black/20 rounded-xl border border-white/5 space-y-1">
-                         <span className="text-[10px] uppercase font-bold text-neutral-500">Drafted Copy</span>
-                         <p className="text-xs leading-relaxed text-neutral-200">"{msg.proposedCampaign.messageCopy}"</p>
-                      </div>
+              <textarea
+                value={messageBody}
+                onChange={e => setMessageBody(e.target.value)}
+                placeholder="Type your message or use AI to draft one..."
+                className="w-full bg-background border border-border rounded-lg p-3 outline-none focus:border-primary transition-colors resize-none h-40"
+              />
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">{messageBody.length} chars</span>
+                <button 
+                  onClick={draftMessage}
+                  disabled={isDrafting}
+                  className="px-4 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-lg font-medium disabled:opacity-50 flex items-center space-x-2"
+                >
+                  <span>✨</span>
+                  <span>{isDrafting ? 'Drafting...' : 'Draft with AI'}</span>
+                </button>
+              </div>
 
-                      <div className="pt-2">
-                        <Button 
-                          onClick={() => handleExecuteCampaign(msg.proposedCampaign!)}
-                          disabled={isExecuting || executionSuccess || (msg.proposedCampaign?.audienceSize === 0)}
-                          className={`w-full font-bold shadow-lg transition-all ${
-                            executionSuccess ? 'bg-green-600 hover:bg-green-700' : 'bg-purple-600 hover:bg-purple-700'
-                          }`}
-                        >
-                          {isExecuting ? (
-                            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Deploying Live...</>
-                          ) : executionSuccess ? (
-                            <><CheckCircle2 className="w-4 h-4 mr-2" /> Campaign Launched Successfully!</>
-                          ) : (
-                            <>Approve & Execute Campaign <ArrowRight className="w-4 h-4 ml-2" /></>
-                          )}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+              <div className="pt-6 flex justify-between">
+                <button onClick={() => setStep(1)} className="px-4 py-2 text-muted-foreground hover:text-foreground font-medium">← Back</button>
+                <button onClick={() => setStep(3)} className="px-6 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg font-medium shadow-md">Review →</button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-center items-center">
+            {/* Live Mockup */}
+            <div className="w-[280px] h-[580px] bg-gray-900 rounded-[2.5rem] border-[8px] border-gray-800 relative overflow-hidden shadow-2xl flex flex-col">
+              <div className="h-6 w-32 bg-gray-800 rounded-b-xl absolute top-0 left-1/2 -translate-x-1/2 z-10"></div>
+              
+              <div className={`p-4 pt-10 text-white font-semibold text-center z-0 ${channel === 'WHATSAPP' ? 'bg-[#075E54]' : channel === 'SMS' ? 'bg-blue-600' : 'bg-gray-800'}`}>
+                {channel === 'WHATSAPP' ? 'XENO CRM' : channel === 'SMS' ? 'Messages' : 'Inbox'}
+              </div>
+              
+              <div className="flex-1 bg-gray-50 p-4 relative flex flex-col justify-end pb-12">
+                <div className={`p-3 rounded-2xl max-w-[85%] mb-2 shadow-sm ${channel === 'WHATSAPP' ? 'bg-[#DCF8C6] text-black rounded-tr-sm self-end' : channel === 'SMS' ? 'bg-gray-200 text-black rounded-bl-sm self-start' : 'bg-white text-black border border-gray-200 w-full'}`}>
+                  {channel === 'EMAIL' && <div className="text-xs text-gray-500 mb-2 border-b pb-1 font-bold">Subject: Special Offer</div>}
+                  <p className="text-sm whitespace-pre-wrap">{messageBody || 'Type a message...'}</p>
                 </div>
-              )}
+              </div>
             </div>
           </div>
-        ))}
+        </motion.div>
+      )}
 
-        {isLoading && (
-          <div className="flex gap-4 flex-row animate-pulse">
-            <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center shrink-0 mt-1">
-              <Bot className="w-4 h-4" />
+      {step === 3 && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+          <div className="bg-card border border-border rounded-xl p-8 shadow-sm max-w-2xl mx-auto space-y-6">
+            <h2 className="text-2xl font-bold text-center">Ready to Send?</h2>
+            
+            <div className="space-y-4 bg-background p-6 rounded-lg border border-border">
+              <div className="flex justify-between border-b border-border/50 pb-3">
+                <span className="text-muted-foreground">Audience</span>
+                <span className="font-semibold">{segmentData?.preview?.count || 0} customers</span>
+              </div>
+              <div className="flex justify-between border-b border-border/50 pb-3">
+                <span className="text-muted-foreground">Channel</span>
+                <span className="font-semibold">{channel}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block mb-2">Message Preview</span>
+                <div className="bg-secondary/50 p-3 rounded text-sm whitespace-pre-wrap">{messageBody}</div>
+              </div>
             </div>
-            <div className="p-4 rounded-2xl bg-secondary text-foreground rounded-tl-none border border-border flex items-center gap-1.5">
-               <div className="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-               <div className="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-               <div className="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-            </div>
+
+            {isDispatching ? (
+              <div className="space-y-2 pt-4">
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium text-primary">Dispatching Campaign...</span>
+                  <span>{dispatchProgress}%</span>
+                </div>
+                <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                  <div className="h-full bg-primary transition-all duration-500" style={{ width: `${dispatchProgress}%` }}></div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-4 pt-4">
+                <button onClick={() => setStep(2)} className="flex-1 py-3 text-muted-foreground hover:bg-secondary rounded-lg font-medium transition-colors">
+                  ← Back to Edit
+                </button>
+                <button onClick={handleSend} className="flex-[2] py-3 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg font-bold shadow-lg shadow-primary/20 text-lg">
+                  Send Campaign 🚀
+                </button>
+              </div>
+            )}
           </div>
-        )}
-        
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input Area */}
-      <div className="p-4 bg-secondary/30 border-t border-border">
-        <form onSubmit={handleSendMessage} className="relative flex items-center">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={isLoading || isExecuting || executionSuccess}
-            placeholder="Tell me your goal..."
-            className="w-full bg-background border border-border rounded-full pl-6 pr-14 py-3.5 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all shadow-inner"
-          />
-          <button
-            type="submit"
-            disabled={!input.trim() || isLoading || isExecuting || executionSuccess}
-            className="absolute right-2 w-10 h-10 rounded-full bg-purple-600 hover:bg-purple-700 disabled:bg-neutral-600 text-white flex items-center justify-center transition-colors shadow-md"
-          >
-            <Send className="w-4 h-4 ml-0.5" />
-          </button>
-        </form>
-      </div>
+        </motion.div>
+      )}
     </div>
   );
 }

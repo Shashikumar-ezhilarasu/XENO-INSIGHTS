@@ -532,4 +532,33 @@ router.get('/analytics/dashboard', async (req: Request, res: Response) => {
   }
 });
 
+
+// Segment Preview
+router.get('/segments/preview', async (req: Request, res: Response) => {
+  const query = req.query.query as string;
+  
+  if (!query) {
+    return res.status(400).json({ error: 'SQL query required' });
+  }
+
+  try {
+    // Basic safety check: only allow SELECT
+    if (!query.trim().toUpperCase().startsWith('SELECT')) {
+      return res.status(400).json({ error: 'Only SELECT queries are allowed.' });
+    }
+
+    // Execute raw SQL count
+    const countResult: any = await prisma.$queryRawUnsafe(`SELECT COUNT(*) as count FROM (${query}) as subquery`);
+    const count = Number(countResult[0]?.count || 0);
+
+    // Execute raw SQL sample (limit 3)
+    const sample = await prisma.$queryRawUnsafe(`${query} LIMIT 3`);
+
+    return res.json({ count, sample });
+  } catch (error: any) {
+    console.error('Segment preview error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

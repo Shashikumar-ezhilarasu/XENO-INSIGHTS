@@ -60,9 +60,9 @@ async function main() {
   const PAYMENTS = ['UPI', 'Credit Card', 'Cash', 'Apple Pay', 'Net Banking'];
   const COMMUNICATIONS = ['WHATSAPP', 'EMAIL', 'SMS', 'RCS'];
 
-  console.log('🌱 Generating 100 realistic customer profiles...');
+  console.log('🌱 Generating 200 realistic customer profiles...');
   const customers = [];
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < 200; i++) {
     const firstName = getRandomElement(FIRST_NAMES);
     const lastName = getRandomElement(LAST_NAMES);
     const name = `${firstName} ${lastName}`;
@@ -282,7 +282,7 @@ async function main() {
   const shuffledCustomers = [...customers].sort(() => 0.5 - Math.random());
   const sampleCustomers = shuffledCustomers.slice(0, 16);
   
-  const communications = [];
+  const communications: any[] = [];
   
   sampleCustomers.forEach((customer, index) => {
     const variant = index % 2 === 0 ? 'A' : 'B';
