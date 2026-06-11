@@ -13,6 +13,7 @@ interface AgentState {
   status: AgentStatus;
   outputPreview: string | null;
   color: string;
+  tableData?: any[];
 }
 
 export default function CampaignCommand() {
@@ -67,13 +68,17 @@ export default function CampaignCommand() {
                 setAgents(prev => prev.map(a => {
                   if (a.id === data.agent) {
                     let preview = a.outputPreview;
+                    let tableData = a.tableData;
                     if (data.status === 'done' && data.output) {
                       if (a.id === 'Orchestrator') preview = `Category: ${data.output.extractedFilters.category || 'All'}, ${data.output.extractedFilters.recencyDays}d`;
-                      if (a.id === 'Data Analyst') preview = `${data.output.audienceSize} customers matched`;
+                      if (a.id === 'Data Analyst') {
+                        preview = `${data.output.audienceSize} customers matched`;
+                        tableData = data.output.sampleCustomers;
+                      }
                       if (a.id === 'Strategy Agent') preview = `${data.output.recommendedChannel} · ${data.output.incentiveType}`;
                       if (a.id === 'Creative Agent') preview = data.output.body ? data.output.body.substring(0, 50) + '...' : 'Draft ready';
                     }
-                    return { ...a, status: data.status, outputPreview: preview };
+                    return { ...a, status: data.status, outputPreview: preview, tableData };
                   }
                   return a;
                 }));
@@ -95,17 +100,47 @@ export default function CampaignCommand() {
     setDispatchProgress(10);
     
     try {
-      const res = await fetch(`${BACKEND_URL}/api/campaigns/execute`, {
+      const createRes = await fetch(`${BACKEND_URL}/api/campaigns/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(proposal)
+        body: JSON.stringify({
+          name: proposal.name,
+          channel: proposal.channel,
+          messageTemplate: proposal.message.body,
+          promptText: goal // Store original user query for fallback
+        })
       });
-      if (res.ok) {
-        setDispatchProgress(100);
-        setTimeout(() => {
-          window.location.href = '/analytics';
-        }, 1500);
+      const createData = await createRes.json();
+
+      if (createRes.ok) {
+        setDispatchProgress(40);
+        const sendRes = await fetch(`${BACKEND_URL}/api/campaigns/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            campaignId: createData.campaign.id
+          })
+        });
+
+        if (sendRes.ok) {
+          // Animate progress to 100%
+          let prog = 40;
+          const intv = setInterval(() => {
+            prog += 15;
+            if (prog > 100) prog = 100;
+            setDispatchProgress(prog);
+            if (prog === 100) {
+              clearInterval(intv);
+              setTimeout(() => {
+                window.location.href = '/analytics';
+              }, 600);
+            }
+          }, 100);
+          return;
+        }
       }
+      setIsDispatching(false);
+      alert("Dispatch failed. Check backend logs.");
     } catch (error) {
       console.error(error);
       setIsDispatching(false);
@@ -179,6 +214,30 @@ export default function CampaignCommand() {
                 {agent.outputPreview && (
                   <div className="mt-3 pl-6 text-sm text-muted-foreground animate-in fade-in slide-in-from-top-1">
                     ↳ {agent.outputPreview}
+                  </div>
+                )}
+                {agent.tableData && agent.tableData.length > 0 && (
+                  <div className="mt-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="bg-background rounded-lg border border-border overflow-hidden">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-secondary text-muted-foreground">
+                          <tr>
+                            <th className="px-3 py-2 font-medium">Name</th>
+                            <th className="px-3 py-2 font-medium">Last Order</th>
+                            <th className="px-3 py-2 font-medium">Spend</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {agent.tableData.slice(0, 3).map((c: any, i: number) => (
+                            <tr key={i} className="border-b border-border/50 last:border-0 hover:bg-secondary/20">
+                              <td className="px-3 py-2">{c.name}</td>
+                              <td className="px-3 py-2">{new Date(c.lastOrderDate || c.lastVisitDate).toLocaleDateString()}</td>
+                              <td className="px-3 py-2 font-medium text-primary">${(c.totalSpend || c.totalSpends || 0).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </div>
