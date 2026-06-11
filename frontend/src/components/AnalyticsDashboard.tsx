@@ -1,8 +1,11 @@
 'use client';
 
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
-import { ShieldCheck, MessageSquare, AlertCircle, Users2, Sparkles, CheckCircle2, ArrowRightCircle, Image as ImageIcon } from 'lucide-react';
+import { 
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
+  AreaChart, Area, PieChart, Pie, Cell
+} from 'recharts';
+import { ShieldCheck, MessageSquare, AlertCircle, Users2, Sparkles, CheckCircle2, ArrowRightCircle, Image as ImageIcon, Activity, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 
@@ -100,6 +103,14 @@ export default function AnalyticsDashboard({ analytics }: AnalyticsDashboardProp
     'Click %': item.rates.clickRatePercent,
     'Fail %': item.rates.failRatePercent,
   })).reverse();
+
+  // 4. Funnel Area Chart Data
+  const funnelData = [
+    { name: 'Targeted', count: totalAudience },
+    { name: 'Delivered', count: totalDelivered },
+    { name: 'Opened', count: totalOpened },
+    { name: 'Clicked', count: totalClicked },
+  ];
 
   return (
     <div className="space-y-6">
@@ -285,6 +296,43 @@ export default function AnalyticsDashboard({ analytics }: AnalyticsDashboardProp
                         </div>
                       </div>
                     </div>
+                    
+                    {/* A/B Visual Comparison */}
+                    <div className="mt-6 p-4 bg-background/50 border border-border rounded-xl flex flex-col md:flex-row items-center justify-between gap-6">
+                      <div className="flex-1 space-y-2">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Conversion Impact (CTR)</h4>
+                        <p className="text-xs text-neutral-400 leading-relaxed">
+                          Visualizing the click-through-rate distribution between Variant A and Variant B. 
+                          The winning variant is automatically assigned more traffic volume.
+                        </p>
+                      </div>
+                      <div className="w-full md:w-1/2 h-32">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={[
+                                { name: 'Variant A', value: ctrA },
+                                { name: 'Variant B', value: ctrB }
+                              ]}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={25}
+                              outerRadius={50}
+                              paddingAngle={5}
+                              dataKey="value"
+                            >
+                              <Cell fill="#8b5cf6" />
+                              <Cell fill="#3b82f6" />
+                            </Pie>
+                            <Tooltip 
+                              formatter={(value) => `${value}%`}
+                              contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '8px', border: '1px solid hsl(var(--border))', fontSize: '12px' }}
+                            />
+                            <Legend verticalAlign="middle" align="right" layout="vertical" wrapperStyle={{ fontSize: '10px' }} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               );
@@ -294,53 +342,78 @@ export default function AnalyticsDashboard({ analytics }: AnalyticsDashboardProp
       )}
 
       {/* Charts Section */}
-      <div className="bg-card border border-border rounded-xl p-6 space-y-4 shadow-sm">
-        <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Campaign Conversion Analysis</h3>
-        <div className="w-full h-80">
-          {chartData.length > 0 ? (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        {/* Funnel Area Chart */}
+        <div className="bg-card border border-border rounded-xl p-6 space-y-4 shadow-sm">
+          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+            <Activity className="w-4 h-4 text-blue-500" />
+            Global Funnel Drop-off
+          </h3>
+          <div className="w-full h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={funnelData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorFunnel" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.15)" vertical={false} />
-                <XAxis 
-                  dataKey="name" 
-                  stroke="#888" 
-                  fontSize={10} 
-                  tickLine={false} 
-                  axisLine={false} 
-                />
-                <YAxis 
-                  stroke="#888" 
-                  fontSize={10} 
-                  tickLine={false} 
-                  axisLine={false} 
-                  domain={[0, 100]} 
-                  tickFormatter={(val) => `${val}%`}
-                />
+                <XAxis dataKey="name" stroke="#888" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke="#888" fontSize={10} tickLine={false} axisLine={false} />
                 <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))', 
-                    borderColor: 'hsl(var(--border))', 
-                    color: 'hsl(var(--foreground))', 
-                    fontSize: '12px',
-                    borderRadius: '8px'
-                  }} 
-                  itemStyle={{ color: 'hsl(var(--foreground))' }}
+                  contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '8px', border: '1px solid hsl(var(--border))', fontSize: '12px' }}
                 />
-                <Legend 
-                  wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} 
-                  iconSize={8}
-                />
-                <Bar dataKey="Delivery %" fill="#22c55e" radius={[4, 4, 0, 0]} barSize={15} />
-                <Bar dataKey="Open %" fill="#a855f7" radius={[4, 4, 0, 0]} barSize={15} />
-                <Bar dataKey="Click %" fill="#eab308" radius={[4, 4, 0, 0]} barSize={15} />
-                <Bar dataKey="Fail %" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={15} />
-              </BarChart>
+                <Area type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorFunnel)" />
+              </AreaChart>
             </ResponsiveContainer>
-          ) : (
-            <div className="h-full flex items-center justify-center text-neutral-500 text-sm font-medium">
-              Launch campaigns to see visual performance charts.
-            </div>
-          )}
+          </div>
+        </div>
+
+        {/* Campaign Conversion Analysis */}
+        <div className="bg-card border border-border rounded-xl p-6 space-y-4 shadow-sm">
+          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-green-500" />
+            Campaign Conversion Analysis
+          </h3>
+          <div className="w-full h-64">
+            {chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorDelivery" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.9}/>
+                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0.4}/>
+                    </linearGradient>
+                    <linearGradient id="colorOpen" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#a855f7" stopOpacity={0.9}/>
+                      <stop offset="95%" stopColor="#a855f7" stopOpacity={0.4}/>
+                    </linearGradient>
+                    <linearGradient id="colorClick" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#eab308" stopOpacity={0.9}/>
+                      <stop offset="95%" stopColor="#eab308" stopOpacity={0.4}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.15)" vertical={false} />
+                  <XAxis dataKey="name" stroke="#888" fontSize={10} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#888" fontSize={10} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(val) => `${val}%`} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '8px', border: '1px solid hsl(var(--border))', fontSize: '12px' }}
+                    itemStyle={{ color: 'hsl(var(--foreground))' }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} iconSize={8} />
+                  <Bar dataKey="Delivery %" fill="url(#colorDelivery)" radius={[4, 4, 0, 0]} barSize={12} />
+                  <Bar dataKey="Open %" fill="url(#colorOpen)" radius={[4, 4, 0, 0]} barSize={12} />
+                  <Bar dataKey="Click %" fill="url(#colorClick)" radius={[4, 4, 0, 0]} barSize={12} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-neutral-500 text-sm font-medium">
+                Launch campaigns to see visual performance charts.
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
