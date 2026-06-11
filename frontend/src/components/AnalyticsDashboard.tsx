@@ -16,12 +16,14 @@ interface VariantStats {
     sent: number;
     delivered: number;
     opened: number;
+    read: number;
     clicked: number;
     failed: number;
   };
   rates: {
     deliveryRatePercent: number;
     openRatePercent: number;
+    readRatePercent: number;
     clickRatePercent: number;
     failRatePercent: number;
   };
@@ -30,6 +32,7 @@ interface VariantStats {
 interface CampaignAnalyticItem {
   campaignId: string;
   campaignName: string;
+  createdAt: string;
   channel: string;
   totalMessages: number;
   messageTemplate: string | null;
@@ -41,12 +44,14 @@ interface CampaignAnalyticItem {
     sent: number;
     delivered: number;
     opened: number;
+    read: number;
     clicked: number;
     failed: number;
   };
   rates: {
     deliveryRatePercent: number;
     openRatePercent: number;
+    readRatePercent: number;
     clickRatePercent: number;
     failRatePercent: number;
   };
@@ -54,6 +59,8 @@ interface CampaignAnalyticItem {
     A: VariantStats;
     B: VariantStats;
   };
+  attributedOrders: number;
+  attributedRevenue: number;
 }
 
 interface AnalyticsDashboardProps {
@@ -65,15 +72,21 @@ export default function AnalyticsDashboard({ analytics }: AnalyticsDashboardProp
   let totalAudience = 0;
   let totalDelivered = 0;
   let totalOpened = 0;
+  let totalRead = 0;
   let totalClicked = 0;
   let totalFailed = 0;
+  let totalAttributedOrders = 0;
+  let totalAttributedRevenue = 0;
 
   for (const item of analytics) {
     totalAudience += item.totalMessages;
-    totalDelivered += item.statusCounts.delivered + item.statusCounts.opened + item.statusCounts.clicked;
-    totalOpened += item.statusCounts.opened + item.statusCounts.clicked;
+    totalDelivered += (item.statusCounts.delivered || 0) + (item.statusCounts.opened || 0) + (item.statusCounts.read || 0) + (item.statusCounts.clicked || 0);
+    totalOpened += (item.statusCounts.opened || 0) + (item.statusCounts.read || 0) + (item.statusCounts.clicked || 0);
+    totalRead += (item.statusCounts.read || 0) + (item.statusCounts.clicked || 0);
     totalClicked += item.statusCounts.clicked || 0;
     totalFailed += item.statusCounts.failed;
+    totalAttributedOrders += item.attributedOrders || 0;
+    totalAttributedRevenue += item.attributedRevenue || 0;
   }
 
   const deliveryRate = totalAudience > 0 ? (totalDelivered / totalAudience) * 100 : 0;
@@ -105,6 +118,31 @@ export default function AnalyticsDashboard({ analytics }: AnalyticsDashboardProp
   })).reverse();
 
   // 4. Funnel Area Chart Data
+
+  // Channel Distribution Data
+  const channelDataMap: Record<string, number> = {};
+  for (const item of analytics) {
+    channelDataMap[item.channel] = (channelDataMap[item.channel] || 0) + item.totalMessages;
+  }
+  const channelData = Object.keys(channelDataMap).map(channel => ({
+    name: channel,
+    value: channelDataMap[channel]
+  }));
+  const COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b'];
+
+  // Revenue Performance Trend Data
+  const revenueTrendData = analytics
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    .reduce((acc: any[], item, index) => {
+      const prevTotal = index > 0 ? acc[index - 1].cumulativeRevenue : 0;
+      acc.push({
+        name: new Date(item.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        cumulativeRevenue: prevTotal + (item.attributedRevenue || 0),
+        campaign: item.campaignName
+      });
+      return acc;
+    }, []);
+
   const funnelData = [
     { name: 'Targeted', count: totalAudience },
     { name: 'Delivered', count: totalDelivered },
@@ -130,31 +168,136 @@ export default function AnalyticsDashboard({ analytics }: AnalyticsDashboardProp
         <div className="bg-card border border-border rounded-xl p-5 space-y-2 shadow-sm">
           <div className="flex items-center justify-between text-neutral-500">
             <span className="text-[10px] font-bold uppercase tracking-wider">Delivered Rate</span>
-            <ShieldCheck className="w-4 h-4 text-green-500" />
+            <CheckCircle2 className="w-4 h-4 text-green-500" />
           </div>
           <p className="text-3xl font-bold font-mono text-foreground">{deliveryRate.toFixed(1)}%</p>
-          <span className="text-[9px] text-green-600 dark:text-green-500 font-semibold block">✔ Successful transmissions</span>
+          <span className="text-[9px] text-neutral-500 block font-medium">✔ Successful transmissions</span>
         </div>
 
-        {/* Card 3: Open Rate */}
+        {/* Card 3: Opened */}
         <div className="bg-card border border-border rounded-xl p-5 space-y-2 shadow-sm">
           <div className="flex items-center justify-between text-neutral-500">
             <span className="text-[10px] font-bold uppercase tracking-wider">Open Rate</span>
-            <MessageSquare className="w-4 h-4 text-purple-500" />
+            <MessageSquare className="w-4 h-4 text-amber-500" />
           </div>
           <p className="text-3xl font-bold font-mono text-foreground">{openRate.toFixed(1)}%</p>
           <span className="text-[9px] text-neutral-500 block font-medium">Opened or read indicators</span>
         </div>
 
-        {/* Card 4: Click Rate */}
+        {/* Card 4: Clicked */}
         <div className="bg-card border border-border rounded-xl p-5 space-y-2 shadow-sm">
           <div className="flex items-center justify-between text-neutral-500">
             <span className="text-[10px] font-bold uppercase tracking-wider">Interaction CTR</span>
-            <ArrowRightCircle className="w-4 h-4 text-yellow-500" />
+            <Sparkles className="w-4 h-4 text-purple-500" />
           </div>
           <p className="text-3xl font-bold font-mono text-foreground">{clickRate.toFixed(1)}%</p>
-          <span className="text-[9px] text-yellow-600 dark:text-yellow-500 font-semibold block">★ Action button responses</span>
+          <span className="text-[9px] text-neutral-500 block font-medium">★ Action button responses</span>
         </div>
+
+        {/* Card 5: Attributed Orders */}
+        <div className="bg-card border border-border rounded-xl p-5 space-y-2 shadow-sm">
+          <div className="flex items-center justify-between text-neutral-500">
+            <span className="text-[10px] font-bold uppercase tracking-wider">Orders Attributed</span>
+            <Activity className="w-4 h-4 text-blue-400" />
+          </div>
+          <p className="text-3xl font-bold font-mono text-foreground">{totalAttributedOrders}</p>
+          <span className="text-[9px] text-neutral-500 block font-medium">Orders from campaigns</span>
+        </div>
+
+        {/* Card 6: Attributed Revenue */}
+        <div className="bg-card border border-border rounded-xl p-5 space-y-2 shadow-sm">
+          <div className="flex items-center justify-between text-neutral-500">
+            <span className="text-[10px] font-bold uppercase tracking-wider">Revenue Attributed</span>
+            <TrendingUp className="w-4 h-4 text-green-400" />
+          </div>
+          <p className="text-3xl font-bold font-mono text-foreground">${totalAttributedRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <span className="text-[9px] text-neutral-500 block font-medium">Estimated ROAS</span>
+        </div>
+
+        {/* Card 7: Read */}
+        <div className="bg-card border border-border rounded-xl p-5 space-y-2 shadow-sm">
+          <div className="flex items-center justify-between text-neutral-500">
+            <span className="text-[10px] font-bold uppercase tracking-wider">Read Rate</span>
+            <ArrowRightCircle className="w-4 h-4 text-indigo-400" />
+          </div>
+          <p className="text-3xl font-bold font-mono text-foreground">{(totalAudience > 0 ? (totalRead / totalAudience) * 100 : 0).toFixed(1)}%</p>
+          <span className="text-[9px] text-neutral-500 block font-medium">Confirmed read receipts</span>
+        </div>
+
+        {/* Card 8: Failed */}
+        <div className="bg-card border border-border rounded-xl p-5 space-y-2 shadow-sm">
+          <div className="flex items-center justify-between text-neutral-500">
+            <span className="text-[10px] font-bold uppercase tracking-wider">Failed Rate</span>
+            <AlertCircle className="w-4 h-4 text-red-500" />
+          </div>
+          <p className="text-3xl font-bold font-mono text-foreground">{failRate.toFixed(1)}%</p>
+          <span className="text-[9px] text-neutral-500 block font-medium">Delivery rejections/bounces</span>
+        </div>
+
+      </div>
+
+      
+      {/* Visual Analytics Expansion Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Channel Distribution */}
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Channel Distribution</CardTitle>
+            <CardDescription>Audience targeted by channel</CardDescription>
+          </CardHeader>
+          <CardContent className="h-64 pt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={channelData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {channelData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
+                  itemStyle={{ color: 'hsl(var(--foreground))' }}
+                />
+                <Legend verticalAlign="bottom" height={36} />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Revenue Growth Trend */}
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Cumulative Revenue Impact</CardTitle>
+            <CardDescription>Estimated ROAS over time</CardDescription>
+          </CardHeader>
+          <CardContent className="h-64 pt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={revenueTrendData}>
+                <defs>
+                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val/1000}k`} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
+                  itemStyle={{ color: 'hsl(var(--foreground))' }}
+                />
+                <Area type="monotone" dataKey="cumulativeRevenue" stroke="#10b981" fillOpacity={1} fill="url(#colorRevenue)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Live Progress Bar for Active Campaign */}
