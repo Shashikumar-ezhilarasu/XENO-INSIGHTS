@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Send, BarChart2, Trophy } from 'lucide-react';
+import { LayoutDashboard, Users, Send, BarChart2, Trophy, UserCircle2 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
 export default function Sidebar() {
@@ -15,6 +15,7 @@ export default function Sidebar() {
     { name: 'Campaign Manager', href: '/campaigns', icon: Send },
     { name: 'Gamification Studio', href: '/gamification', icon: Trophy },
     { name: 'Analytics Monitor', href: '/analytics', icon: BarChart2 },
+    { name: 'Team Members', href: '/team', icon: UserCircle2 },
   ];
 
   return (
