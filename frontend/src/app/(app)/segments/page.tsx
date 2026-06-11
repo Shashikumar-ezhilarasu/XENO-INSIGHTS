@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { useSharedState } from "../../../hooks/useSharedState";
 import {
   Sparkles,
@@ -145,7 +146,7 @@ const CAMPAIGN_PRESETS = [
   },
 ];
 
-export default function SegmentsPage() {
+function AISegmentsStudioContent() {
   const router = useRouter();
   const { setSelectedAudience } = useSharedState();
 
@@ -1272,5 +1273,13 @@ export default function SegmentsPage() {
         </Card>
       )}
     </div>
+  );
+}
+
+export default function AISegmentsStudio() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-500" /></div>}>
+      <AISegmentsStudioContent />
+    </Suspense>
   );
 }
