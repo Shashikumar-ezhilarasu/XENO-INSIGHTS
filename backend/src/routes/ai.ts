@@ -187,3 +187,45 @@ router.post('/segment', aiSegmentRateLimiter, validateAiSegment, async (req: Req
 });
 
 export default router;
+
+/**
+ * POST /api/ai/draft-message
+ * Uses Gemini to draft a campaign message template.
+ */
+router.post('/draft-message', aiSegmentRateLimiter, async (req: Request, res: Response) => {
+  const { segmentSummary, channel, goal } = req.body;
+
+  if (!segmentSummary || !channel || !goal) {
+    return res.status(400).json({ error: 'segmentSummary, channel, and goal are required' });
+  }
+
+  if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.startsWith('AIzaSy...')) {
+    return res.status(500).json({ 
+      error: 'Gemini API key is not configured. Please set GEMINI_API_KEY in the .env file.' 
+    });
+  }
+
+  try {
+    const prompt = `You are an expert marketing copywriter drafting a message for a brand.
+    Audience/Segment Details: ${segmentSummary}
+    Channel: ${channel}
+    Campaign Goal: ${goal}
+    
+    Draft a single, highly engaging message template. 
+    Use the following dynamic macros exactly as written where relevant: {{name}}, {{last_purchase_date}}, {{favorite_category}}, {{total_loyalty_points}}.
+    Do not include any placeholders like [Brand Name]. Make it sound like a real generic brand.
+    Return ONLY the raw message string in your response, nothing else.`;
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const result = await model.generateContent(prompt);
+    const draftText = result.response.text().trim();
+
+    return res.json({ draft: draftText });
+  } catch (error: any) {
+    console.error('Systemic error drafting message:', error);
+    return res.status(500).json({ 
+      error: 'An error occurred while generating the message draft.',
+      details: error.message
+    });
+  }
+});

@@ -212,6 +212,8 @@ export default function CampaignsPage() {
   const [imageUrl, setImageUrl] = useState('');
   const [buttonsInput, setButtonsInput] = useState('Buy Now, Opt Out');
   const [autoSplit, setAutoSplit] = useState(false);
+  const [campaignGoal, setCampaignGoal] = useState('');
+  const [isDraftingAI, setIsDraftingAI] = useState(false);
   
   const [isLaunching, setIsLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -227,6 +229,41 @@ export default function CampaignsPage() {
   if (!selectedAudience) {
     return <CampaignInspirationHub />;
   }
+
+  
+  const handleDraftWithAI = async () => {
+    if (!campaignGoal.trim()) {
+      setError('Please enter a Campaign Goal before drafting with AI.');
+      return;
+    }
+    
+    setIsDraftingAI(true);
+    setError('');
+    
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/ai/draft-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          segmentSummary: `Targeting ${selectedAudience.audienceSize} shoppers: ${selectedAudience.query}`,
+          channel: campaignChannel,
+          goal: campaignGoal
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to draft message');
+      }
+      
+      setCampaignTemplate(data.draft);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsDraftingAI(false);
+    }
+  };
 
   const handleLaunchCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -503,6 +540,32 @@ export default function CampaignsPage() {
             </button>
           </CardHeader>
           <CardContent className="space-y-4">
+            
+            {/* Campaign Goal for AI */}
+            <div className="space-y-1 pt-4 border-t border-border">
+              <label className="text-xs text-neutral-500 font-semibold block uppercase tracking-wider">Campaign Goal (For AI Drafting)</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={campaignGoal}
+                  onChange={(e) => setCampaignGoal(e.target.value)}
+                  className="flex-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-neutral-400 dark:focus:border-neutral-700"
+                  placeholder="e.g. Win-back inactive customers with a 50% discount"
+                  disabled={isLaunching || success || isDraftingAI}
+                />
+                <Button 
+                  type="button" 
+                  onClick={handleDraftWithAI} 
+                  disabled={isLaunching || success || isDraftingAI}
+                  variant="secondary"
+                  className="whitespace-nowrap bg-purple-500 hover:bg-purple-600 text-white border-none"
+                >
+                  {isDraftingAI ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                  Draft with AI
+                </Button>
+              </div>
+            </div>
+
             {/* Variant A Template */}
             <div className="space-y-1">
               <label className="text-xs text-neutral-500 font-semibold block uppercase tracking-wider">
