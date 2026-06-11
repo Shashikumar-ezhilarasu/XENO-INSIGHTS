@@ -18,12 +18,14 @@ export interface CampaignAnalyticItem {
     sent: number;
     delivered: number;
     opened: number;
+    read: number;
     clicked: number;
     failed: number;
   };
   rates: {
     deliveryRatePercent: number;
     openRatePercent: number;
+    readRatePercent: number;
     clickRatePercent: number;
     failRatePercent: number;
   };
@@ -31,6 +33,8 @@ export interface CampaignAnalyticItem {
     A: any;
     B: any;
   };
+  attributedOrders: number;
+  attributedRevenue: number;
 }
 
 const MOCK_ANALYTICS: CampaignAnalyticItem[] = [
@@ -50,27 +54,31 @@ const MOCK_ANALYTICS: CampaignAnalyticItem[] = [
       sent: 50,
       delivered: 48,
       opened: 35,
+      read: 25,
       clicked: 20,
       failed: 2
     },
     rates: {
       deliveryRatePercent: 96,
       openRatePercent: 70,
+      readRatePercent: 50,
       clickRatePercent: 40,
       failRatePercent: 4
     },
     variants: {
       A: {
         totalMessages: 25,
-        statusCounts: { pending: 0, sent: 25, delivered: 24, opened: 15, clicked: 8, failed: 1 },
-        rates: { deliveryRatePercent: 96, openRatePercent: 60, clickRatePercent: 32, failRatePercent: 4 }
+        statusCounts: { pending: 0, sent: 25, delivered: 24, opened: 15, read: 10, clicked: 8, failed: 1 },
+        rates: { deliveryRatePercent: 96, openRatePercent: 60, readRatePercent: 40, clickRatePercent: 32, failRatePercent: 4 }
       },
       B: {
         totalMessages: 25,
-        statusCounts: { pending: 0, sent: 25, delivered: 24, opened: 20, clicked: 12, failed: 1 },
-        rates: { deliveryRatePercent: 96, openRatePercent: 80, clickRatePercent: 48, failRatePercent: 4 }
+        statusCounts: { pending: 0, sent: 25, delivered: 24, opened: 20, read: 15, clicked: 12, failed: 1 },
+        rates: { deliveryRatePercent: 96, openRatePercent: 80, readRatePercent: 60, clickRatePercent: 48, failRatePercent: 4 }
       }
-    }
+    },
+    attributedOrders: 20,
+    attributedRevenue: 1500.00
   },
   {
     campaignId: 'camp-mock-2',
@@ -88,15 +96,79 @@ const MOCK_ANALYTICS: CampaignAnalyticItem[] = [
       sent: 120,
       delivered: 118,
       opened: 90,
+      read: 60,
       clicked: 45,
       failed: 2
     },
     rates: {
       deliveryRatePercent: 98.3,
       openRatePercent: 75,
+      readRatePercent: 50,
       clickRatePercent: 37.5,
       failRatePercent: 1.7
-    }
+    },
+    attributedOrders: 45,
+    attributedRevenue: 3200.50
+  },
+  {
+    campaignId: 'camp-mock-3',
+    campaignName: 'Weekend SMS Flash Sale',
+    channel: 'SMS',
+    promptText: 'Apparel shoppers who bought last month',
+    messageTemplate: 'Xeno: Flash Sale! 20% off all Apparel this weekend only. Show this text in-store.',
+    messageTemplateB: null,
+    imageUrl: null,
+    buttons: null,
+    createdAt: new Date(Date.now() - 172800000).toISOString(),
+    totalMessages: 350,
+    statusCounts: {
+      pending: 0,
+      sent: 350,
+      delivered: 340,
+      opened: 280,
+      read: 200,
+      clicked: 85,
+      failed: 10
+    },
+    rates: {
+      deliveryRatePercent: 97.1,
+      openRatePercent: 82.3,
+      readRatePercent: 71.4,
+      clickRatePercent: 30.3,
+      failRatePercent: 2.8
+    },
+    attributedOrders: 40,
+    attributedRevenue: 2850.00
+  },
+  {
+    campaignId: 'camp-mock-4',
+    campaignName: 'Beauty Spring Collection Launch',
+    channel: 'RCS',
+    promptText: 'High LTV Beauty Customers',
+    messageTemplate: 'Discover our new Spring Collection. Tap below to browse the catalog!',
+    messageTemplateB: null,
+    imageUrl: 'https://example.com/spring-beauty.jpg',
+    buttons: 'View Catalog, Shop Now',
+    createdAt: new Date(Date.now() - 432000000).toISOString(),
+    totalMessages: 80,
+    statusCounts: {
+      pending: 0,
+      sent: 80,
+      delivered: 79,
+      opened: 75,
+      read: 70,
+      clicked: 55,
+      failed: 1
+    },
+    rates: {
+      deliveryRatePercent: 98.7,
+      openRatePercent: 94.9,
+      readRatePercent: 93.3,
+      clickRatePercent: 73.3,
+      failRatePercent: 1.2
+    },
+    attributedOrders: 32,
+    attributedRevenue: 4100.25
   }
 ];
 
