@@ -342,7 +342,7 @@ Based on the LAST message from the USER, generate your response.`;
               nullable: true,
               properties: {
                 name: { type: SchemaType.STRING, description: 'Catchy internal campaign name' },
-                targetSegment: { type: SchemaType.STRING, description: 'Natural language description of the target audience (e.g. "Coffee lovers who haven\\'t bought in 30 days")' },
+                targetSegment: { type: SchemaType.STRING, description: 'Natural language description of the target audience (e.g. "Coffee lovers who haven\'t bought in 30 days")' },
                 channel: { type: SchemaType.STRING, description: 'WHATSAPP, EMAIL, SMS, or RCS' },
                 messageCopy: { type: SchemaType.STRING, description: 'The exact drafted message to be sent.' },
                 incentive: { type: SchemaType.STRING, description: 'The incentive offered (e.g. "20% off", "Flat $10")' }

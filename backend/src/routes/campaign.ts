@@ -239,7 +239,8 @@ router.post('/send', campaignSendRateLimiter, validateCampaignSend, async (req: 
       })
     ]);
 
-    const channelServiceUrl = `http://localhost:3002/send`;
+    const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`;
+    const channelServiceUrl = `${backendUrl}/api/channel/send`;
 
     setImmediate(() => {
       console.log(`[Campaign Engine] Initiating async dispatch for ${communicationRecords.length} messages. A/B Test: ${isABTest}`);
