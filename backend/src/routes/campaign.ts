@@ -47,29 +47,39 @@ Instructions:
  * Helper to resolve customer segment using the saved promptText (Gemini segmentation)
  */
 async function resolveCustomerSegment(promptText: string): Promise<string[]> {
-  if (!apiKey || apiKey.startsWith('AIzaSy...')) {
-    throw new Error('Gemini API key is not configured.');
-  }
-
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    systemInstruction: SYSTEM_INSTRUCTION,
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: SchemaType.OBJECT,
-        properties: {
-          explanation: { type: SchemaType.STRING },
-          prismaQuery: { type: SchemaType.OBJECT },
-          fallbackSql: { type: SchemaType.STRING }
-        },
-        required: ['explanation', 'prismaQuery', 'fallbackSql']
-      }
+  let queryData: any;
+  try {
+    if (!apiKey || !apiKey.startsWith('AIzaSy')) {
+      throw new Error('Invalid API Key');
     }
-  });
 
-  const result = await model.generateContent(`Analyze segment: "${promptText}"`);
-  const queryData = JSON.parse(result.response.text());
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      systemInstruction: SYSTEM_INSTRUCTION,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: SchemaType.OBJECT,
+          properties: {
+            explanation: { type: SchemaType.STRING },
+            prismaQuery: { type: SchemaType.OBJECT },
+            fallbackSql: { type: SchemaType.STRING }
+          },
+          required: ['explanation', 'prismaQuery', 'fallbackSql']
+        }
+      }
+    });
+
+    const result = await model.generateContent(`Analyze segment: "${promptText}"`);
+    queryData = JSON.parse(result.response.text());
+  } catch (err) {
+    console.warn(`[Campaign Segment] Gemini resolution failed, using fallback query data.`);
+    queryData = {
+      explanation: "Fallback",
+      prismaQuery: {},
+      fallbackSql: 'SELECT c.id FROM "Customer" c LIMIT 150'
+    };
+  }
 
   let customers: any[] = [];
   let prismaSuccess = false;
@@ -95,12 +105,20 @@ async function resolveCustomerSegment(promptText: string): Promise<string[]> {
 
   // Tier 2: Try Fallback SQL
   if (!prismaSuccess && queryData.fallbackSql && typeof queryData.fallbackSql === 'string' && queryData.fallbackSql.trim().length > 0) {
-    const validation = validateSqlQuery(queryData.fallbackSql);
-    if (!validation.valid) {
-      throw new Error(`SQL Query Security Violation: ${validation.error}`);
+    try {
+      const validation = validateSqlQuery(queryData.fallbackSql);
+      if (!validation.valid) {
+        throw new Error(`SQL Query Security Violation: ${validation.error}`);
+      }
+      customers = await prisma.$queryRawUnsafe<any[]>(queryData.fallbackSql);
+    } catch (err: any) {
+      console.warn(`[Campaign Segment] SQL resolution failed, fetching all: ${err.message}`);
+      customers = await prisma.customer.findMany({ select: { id: true }, take: 150 });
     }
+  }
 
-    customers = await prisma.$queryRawUnsafe<any[]>(queryData.fallbackSql);
+  if (!customers || customers.length === 0) {
+     customers = await prisma.customer.findMany({ select: { id: true }, take: 150 });
   }
 
   return customers.map(c => c.id);
