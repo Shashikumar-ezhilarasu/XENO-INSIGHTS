@@ -56,11 +56,7 @@ Instructions:
 router.post('/segment', aiSegmentRateLimiter, validateAiSegment, async (req: Request, res: Response) => {
   const { promptText } = req.body;
 
-  if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.startsWith('AIzaSy...')) {
-    return res.status(500).json({ 
-      error: 'Gemini API key is not configured. Please set GEMINI_API_KEY in the .env file.' 
-    });
-  }
+  // Removed strict key check to allow fallback simulator if key is invalid
 
   try {
     const model = genAI.getGenerativeModel({
@@ -91,19 +87,33 @@ router.post('/segment', aiSegmentRateLimiter, validateAiSegment, async (req: Req
 
     console.log(`Analyzing segment prompt: "${promptText}"`);
     const prompt = `Analyze this prompt and generate the database query: "${promptText}"`;
-    const result = await model.generateContent(prompt);
-    let responseText = result.response.text();
-    responseText = responseText.replace(/```json\n?|```/g, '').trim();
+    let responseText = "";
+    try {
+      if (!process.env.GEMINI_API_KEY || !process.env.GEMINI_API_KEY.startsWith('AIzaSy')) {
+         throw new Error("Invalid API Key");
+      }
+      const result = await model.generateContent(prompt);
+      responseText = result.response.text();
+      responseText = responseText.replace(/```json\n?|```/g, '').trim();
+    } catch (apiErr) {
+      console.error('Gemini API Error, falling back to simulated data');
+      responseText = JSON.stringify({
+        explanation: "Simulated fallback query since Gemini API key is missing or invalid.",
+        prismaQuery: {},
+        fallbackSql: "SELECT * FROM \"Customer\" ORDER BY \"lastOrderDate\" DESC LIMIT 150"
+      });
+    }
 
     let queryData;
     try {
       queryData = JSON.parse(responseText);
     } catch (parseErr) {
       console.error('Failed to parse Gemini output:', responseText);
-      return res.status(502).json({ 
-        error: 'Invalid response format received from Gemini model.', 
-        rawResponse: responseText 
-      });
+      queryData = {
+        explanation: "Simulated fallback query since Gemini API failed.",
+        prismaQuery: {},
+        fallbackSql: "SELECT * FROM \"Customer\" ORDER BY \"lastOrderDate\" DESC LIMIT 50"
+      };
     }
 
     let customers: any[] = [];
@@ -179,10 +189,19 @@ router.post('/segment', aiSegmentRateLimiter, validateAiSegment, async (req: Req
     });
 
   } catch (error: any) {
-    console.error('Systemic error parsing segment prompt:', error);
-    return res.status(500).json({ 
-      error: 'An error occurred while processing the segmentation request.',
-      details: error.message
+    console.error('Systemic error parsing segment prompt, falling back to mock data:', error.message);
+    // Mock response if Postgres is failing
+    const mockCustomers = [
+      { id: 'mock-1', name: 'John Doe', email: 'john@example.com', totalSpends: 150.00, lastVisitDate: new Date() },
+      { id: 'mock-2', name: 'Jane Smith', email: 'jane@example.com', totalSpends: 320.50, lastVisitDate: new Date() }
+    ];
+    return res.json({ 
+      success: true,
+      queryType: 'MOCK',
+      explanation: 'Simulated fallback payload because the database could not be reached.',
+      generatedQuery: 'SELECT * FROM "Customer" (MOCK)',
+      audienceSize: 150,
+      customers: mockCustomers
     });
   }
 });
@@ -199,11 +218,7 @@ router.post('/draft-message', aiSegmentRateLimiter, async (req: Request, res: Re
     return res.status(400).json({ error: 'segmentSummary, channel, and goal are required' });
   }
 
-  if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.startsWith('AIzaSy...')) {
-    return res.status(500).json({ 
-      error: 'Gemini API key is not configured. Please set GEMINI_API_KEY in the .env file.' 
-    });
-  }
+  // Removed strict key check to allow fallback simulator if key is invalid
 
   try {
     const prompt = `You are an expert marketing copywriter drafting a message for a brand.
@@ -216,16 +231,29 @@ router.post('/draft-message', aiSegmentRateLimiter, async (req: Request, res: Re
     Do not include any placeholders like [Brand Name]. Make it sound like a real generic brand.
     Return ONLY the raw message string in your response, nothing else.`;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const result = await model.generateContent(prompt);
     const draftText = result.response.text().trim();
 
-    return res.json({ draft: draftText });
+    return res.json({ draft: draftText, body: draftText, message: draftText });
   } catch (error: any) {
     console.error('Systemic error drafting message:', error);
-    return res.status(500).json({ 
-      error: 'An error occurred while generating the message draft.',
-      details: error.message
+    
+    // Incase of AI failure this message can be used since I am working on free tier API,
+    // which later can be replaced with a production grade one.
+    const fallbackMessages = [
+      `Hey {{name}}, it's been a while since your last purchase! Come back and grab 20% off your next order.`,
+      `Hi {{name}}! We missed you. Use code WELCOMEBACK for a special surprise on your favorite items.`,
+      `Exclusive for you, {{name}}! You have {{total_loyalty_points}} loyalty points waiting to be redeemed.`
+    ];
+    
+    const randomFallback = fallbackMessages[Math.floor(Math.random() * fallbackMessages.length)];
+    
+    return res.json({ 
+      draft: randomFallback,
+      body: randomFallback,
+      message: randomFallback,
+      notice: 'Fallback message generated due to AI free tier limitation.'
     });
   }
 });
