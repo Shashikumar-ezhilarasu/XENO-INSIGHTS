@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useLivePolling } from '../../hooks/useLivePolling';
-import AnalyticsDashboard from '../../components/AnalyticsDashboard';
+import { useLivePolling } from '../../../hooks/useLivePolling';
+import AnalyticsDashboard from '../../../components/AnalyticsDashboard';
 import { 
   Loader2, RefreshCw, Calculator, CheckCircle2, 
-  AlertCircle, Ticket, Percent, Activity, TrendingUp, HelpCircle
+  AlertCircle, Ticket, Percent, Activity, TrendingUp, HelpCircle, Sparkles
 } from 'lucide-react';
-import { Button } from '../../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Button } from '../../../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
@@ -121,6 +121,50 @@ export default function AnalyticsPage() {
     const selected = customers.find(c => c.id === custId);
     if (selected) {
       setProductCategory(selected.favoriteCategory || 'Coffee');
+    }
+  };
+
+  const handleAutoRecommend = () => {
+    setSimResult(null);
+    const parsedTotal = parseFloat(cartTotal);
+    
+    // Filter valid offers
+    let bestOffer = null;
+    let bestDiscount = -1;
+
+    for (const offer of offers) {
+      // Check limits
+      if (offer.currentUsageCount >= offer.maxTotalUsage) continue;
+      // Check minimum order value
+      if (parsedTotal < offer.minOrderValue) continue;
+      // Check category constraint
+      if (offer.categoryConstraint && offer.categoryConstraint.toLowerCase() !== productCategory.toLowerCase()) continue;
+
+      let discountValue = 0;
+      if (offer.discountType === 'PERCENTAGE') {
+        discountValue = parsedTotal * (offer.value / 100);
+      } else {
+        discountValue = offer.value;
+      }
+      discountValue = Math.min(discountValue, parsedTotal);
+
+      if (discountValue > bestDiscount) {
+        bestDiscount = discountValue;
+        bestOffer = offer;
+      }
+    }
+
+    if (bestOffer) {
+      setCouponCode(bestOffer.code);
+      setSimResult({
+        valid: true,
+        error: `AI Recommended: ${bestOffer.code} yields the maximum savings of $${bestDiscount.toFixed(2)} for this cart!`
+      });
+    } else {
+      setSimResult({
+        valid: false,
+        error: `No valid offers found for ${productCategory} with a cart total of $${parsedTotal.toFixed(2)}.`
+      });
     }
   };
 
@@ -410,8 +454,19 @@ export default function AnalyticsPage() {
                     </div>
 
                     {/* Promo Code selection */}
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-neutral-500 font-bold uppercase block">2. Input Coupon Code</label>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] text-neutral-500 font-bold uppercase block">2. Select or Auto-Recommend Offer</label>
+                        <button 
+                          type="button" 
+                          onClick={handleAutoRecommend}
+                          className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 hover:bg-purple-500/20 px-2 py-1 rounded-md flex items-center gap-1 transition"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          <span>AI Auto-Recommend</span>
+                        </button>
+                      </div>
+                      
                       <select
                         value={couponCode}
                         onChange={(e) => setCouponCode(e.target.value)}
@@ -443,8 +498,22 @@ export default function AnalyticsPage() {
 
                   {/* Simulator Result display block */}
                   {simResult && (
-                    <div className="mt-4 p-4 border border-border rounded-xl animate-scaleUp">
-                      {simResult.valid ? (
+                    <div className={`mt-4 p-4 border rounded-xl animate-scaleUp ${
+                      simResult.valid && !simResult.offer 
+                        ? 'border-purple-200 dark:border-purple-900 bg-purple-50 dark:bg-purple-950/20' 
+                        : 'border-border'
+                    }`}>
+                      {simResult.valid && !simResult.offer ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5 text-xs text-purple-600 font-bold">
+                            <Sparkles className="w-4 h-4" />
+                            <span>AI Recommendation Ready</span>
+                          </div>
+                          <p className="text-[11px] text-purple-700 dark:text-purple-400 font-medium leading-relaxed">
+                            {simResult.error}
+                          </p>
+                        </div>
+                      ) : simResult.valid ? (
                         <div className="space-y-2">
                           <div className="flex items-center gap-1.5 text-xs text-green-600 font-bold">
                             <CheckCircle2 className="w-4 h-4" />

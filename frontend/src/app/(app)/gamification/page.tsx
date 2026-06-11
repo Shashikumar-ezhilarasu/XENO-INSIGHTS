@@ -6,8 +6,9 @@ import {
   HelpCircle, CheckCircle2, Loader2, RefreshCw, AlertCircle,
   Copy, Check, Send, Smartphone, Landmark, Info
 } from 'lucide-react';
-import { Button } from '../../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Button } from '../../../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
+import { useRouter } from 'next/navigation';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
@@ -26,6 +27,7 @@ const MOCK_CUSTOMERS = [
 ];
 
 export default function GamificationPage() {
+  const router = useRouter();
   const [customers, setCustomers] = useState<CustomerProfile[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [referredCustomerId, setReferredCustomerId] = useState('');
@@ -358,6 +360,60 @@ export default function GamificationPage() {
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
+  // Gamification Launch Simulator
+  const [launching, setLaunching] = useState(false);
+  
+  const handleLaunchCampaign = async () => {
+    if (!selectedCustomerId) {
+      setActionErrorMsg('Please select a target shopper to launch the campaign.');
+      return;
+    }
+
+    setLaunching(true);
+    setActionErrorMsg(null);
+    setActionSuccessMsg(null);
+
+    try {
+      // 1. Create the campaign
+      const createRes = await fetch(`${BACKEND_URL}/api/campaigns/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `Interactive ${hookStrategy} Campaign`,
+          promptText: 'Gamified Hook Simulation',
+          channel: 'WHATSAPP',
+          messageTemplate: `Hi there! Play our new ${hookStrategy} game to win prizes!`,
+          autoSplit: false
+        })
+      });
+
+      if (!createRes.ok) throw new Error('Failed to create campaign');
+      const createData = await createRes.json();
+      const campaignId = createData.campaign.id;
+
+      // 2. Send the campaign to the specific customer
+      const sendRes = await fetch(`${BACKEND_URL}/api/campaigns/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaignId,
+          customerIds: [selectedCustomerId]
+        })
+      });
+
+      if (!sendRes.ok) throw new Error('Failed to dispatch campaign');
+      
+      setActionSuccessMsg('Gamified Campaign launched! Redirecting to analytics monitor...');
+      setTimeout(() => router.push('/analytics'), 1500);
+
+    } catch (err: any) {
+      console.error('Launch failed:', err);
+      setActionErrorMsg('Failed to launch the campaign. Ensure backend is running.');
+    } finally {
+      setLaunching(false);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-fadeIn">
       {/* Header */}
@@ -655,6 +711,26 @@ export default function GamificationPage() {
             <p className="text-[10px] text-neutral-500 leading-relaxed pt-1">
               ✔ Metadata configuration is prepared. You can launch these hooks inside campaign templates to boost click rates.
             </p>
+
+            <div className="pt-2">
+              <Button 
+                onClick={handleLaunchCampaign}
+                disabled={launching}
+                className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-lg py-2 rounded-xl border border-white/10"
+              >
+                {launching ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <span>Deploying Gamified Campaign...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    <span>🚀 Launch Gamified Campaign</span>
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
 
         </div>
