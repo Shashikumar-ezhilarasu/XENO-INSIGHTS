@@ -11,7 +11,6 @@ export default function Sidebar() {
 
   const navItems = [
     { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'AI Segments', href: '/segments', icon: Users },
     { name: 'Campaign Manager', href: '/campaigns', icon: Send },
     { name: 'Gamification Studio', href: '/gamification', icon: Trophy },
     { name: 'Analytics Monitor', href: '/analytics', icon: BarChart2 },
