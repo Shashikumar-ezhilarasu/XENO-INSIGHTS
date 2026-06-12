@@ -50,10 +50,10 @@ export default function TourModal() {
         router.push('/dashboard');
         break;
       case 2:
-        router.push('/segments');
+        router.push('/campaigns');
         break;
       case 3:
-        router.push('/campaigns');
+        router.push('/campaigns/builder');
         break;
       case 4:
         router.push('/campaigns/command');
@@ -141,7 +141,7 @@ export default function TourModal() {
                     <h3 className="text-xl font-bold text-foreground">1. AI Segments</h3>
                   </div>
                   <p className="text-muted-foreground leading-relaxed">
-                    Gone are the days of complex SQL queries or clunky filter builders. In the <strong>Segments</strong> page, you simply type what you want in plain English:
+                    Gone are the days of complex SQL queries or clunky filter builders. In the <strong>AI Segments</strong> workspace, you simply type what you want in plain English:
                   </p>
                   <div className="bg-secondary p-4 rounded-xl border border-border font-mono text-sm text-foreground shadow-inner">
                     "Find me customers who love coffee and haven't ordered in 60 days."
