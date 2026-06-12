@@ -150,6 +150,50 @@ router.post('/identity-event', async (req: Request, res: Response) => {
  * Multi-format Data Ingestion (CSV / JSON)
  * Validates rows, upserts via email, prevents duplicates.
  */
+/**
+ * Helper to normalize keys to camelCase from various formats (snake_case, spaces, lowercase)
+ */
+function normalizeRowKeys(obj: any): any {
+  if (!obj || typeof obj !== 'object') return obj;
+  const normalized: any = {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    const normalizedKey = key.toLowerCase().replace(/[\s_-]+/g, '');
+    
+    if (normalizedKey === 'name') normalized.name = val;
+    else if (normalizedKey === 'email') normalized.email = val;
+    else if (normalizedKey === 'phone' || normalizedKey === 'phonenumber' || normalizedKey === 'phone_number') normalized.phone = val;
+    else if (normalizedKey === 'totalspends' || normalizedKey === 'totalspend' || normalizedKey === 'spend' || normalizedKey === 'spends' || normalizedKey === 'total_spends') normalized.totalSpends = val;
+    else if (normalizedKey === 'loyaltypoints' || normalizedKey === 'points' || normalizedKey === 'loyalty_points') normalized.loyaltyPoints = val;
+    else if (normalizedKey === 'favoritecategory' || normalizedKey === 'category' || normalizedKey === 'favorite_category') normalized.favoriteCategory = val;
+    else if (normalizedKey === 'location' || normalizedKey === 'address' || normalizedKey === 'city') normalized.location = val;
+    else if (normalizedKey === 'modeofpayment' || normalizedKey === 'paymentmode' || normalizedKey === 'payment' || normalizedKey === 'mode_of_payment') normalized.modeOfPayment = val;
+    else if (normalizedKey === 'preferredcommunication' || normalizedKey === 'communication' || normalizedKey === 'preferred_communication') normalized.preferredCommunication = val;
+    else {
+      normalized[key] = val;
+    }
+  }
+  return normalized;
+}
+
+/**
+ * Helper to clean numeric strings containing symbols, spaces, or suffixes (e.g. "$12,500" or "⚡ 89 pts")
+ */
+function cleanNumericString(val: any): any {
+  if (typeof val === 'number') return val;
+  if (typeof val === 'string') {
+    const cleaned = val.replace(/[^0-9.]/g, '');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? undefined : num;
+  }
+  return val;
+}
+
+/**
+ * POST /api/ingest/file
+ * Multi-format Data Ingestion (CSV / JSON)
+ * Validates rows, normalizes headers, cleans metrics, and upserts per-row to avoid timeout constraints.
+ */
 router.post('/file', upload.single('file'), async (req: Request, res: Response) => {
   const { file } = req;
   if (!file) {
@@ -174,15 +218,20 @@ router.post('/file', upload.single('file'), async (req: Request, res: Response) 
   }
 
   const CustomerIngestSchema = z.object({
-    name: z.string().min(1, "Name is required"),
-    email: z.string().email("Invalid email format"),
-    phone: z.string().min(1, "Phone is required"),
-    totalSpends: z.coerce.number().optional().default(0.0),
-    loyaltyPoints: z.coerce.number().optional().default(0.0),
+    name: z.preprocess((val) => (typeof val === 'string' ? val.trim() : val), z.string().optional().default("")),
+    email: z.preprocess((val) => (typeof val === 'string' ? val.trim() : val), z.string().email("Invalid email format")),
+    phone: z.preprocess((val) => (typeof val === 'string' ? val.trim() : val), z.string().optional().default("Unknown")),
+    totalSpends: z.preprocess(cleanNumericString, z.coerce.number().optional().default(0.0)),
+    loyaltyPoints: z.preprocess(cleanNumericString, z.coerce.number().optional().default(0.0)),
     favoriteCategory: z.string().optional().default('Coffee'),
     location: z.string().optional().default('Chennai, India'),
     modeOfPayment: z.string().optional().default('UPI'),
     preferredCommunication: z.string().optional().default('WHATSAPP')
+  }).transform((data) => {
+    if (!data.name) {
+      data.name = data.email.split('@')[0];
+    }
+    return data;
   });
 
   let processed = 0;
@@ -191,19 +240,20 @@ router.post('/file', upload.single('file'), async (req: Request, res: Response) 
 
   const validRows: any[] = [];
   for (let i = 0; i < rawData.length; i++) {
-    const row = rawData[i];
+    const row = normalizeRowKeys(rawData[i]);
     const result = CustomerIngestSchema.safeParse(row);
     if (result.success) {
       validRows.push(result.data);
     } else {
       skipped++;
-      errors.push({ row: i + 1, data: row, issues: result.error.issues });
+      errors.push({ row: i + 1, data: rawData[i], issues: result.error.issues });
     }
   }
 
-  try {
-    await prisma.$transaction(async (tx) => {
-      for (const validRow of validRows) {
+  // Process each customer row in its own scoped transaction block to avoid interactive timeout limits
+  for (const validRow of validRows) {
+    try {
+      await prisma.$transaction(async (tx) => {
         const customer = await tx.customer.upsert({
           where: { email: validRow.email },
           update: {
@@ -296,24 +346,24 @@ router.post('/file', upload.single('file'), async (req: Request, res: Response) 
             });
           }
         }
-
-        processed++;
-      }
-    });
-
-    return res.status(200).json({
-      success: true,
-      summary: {
-        totalReceived: rawData.length,
-        processed,
-        skipped,
-        errors: errors.slice(0, 10)
-      }
-    });
-  } catch (e: any) {
-    console.error('[Ingest Engine] Transaction error:', e);
-    return res.status(500).json({ error: 'Database error during ingestion.' });
+      });
+      processed++;
+    } catch (err: any) {
+      console.error(`[Ingest Engine] Row processing failed for email ${validRow.email}:`, err.message);
+      skipped++;
+      errors.push({ row: processed + skipped, email: validRow.email, error: err.message });
+    }
   }
+
+  return res.status(200).json({
+    success: true,
+    summary: {
+      totalReceived: rawData.length,
+      processed,
+      skipped,
+      errors: errors.slice(0, 10)
+    }
+  });
 });
 
 export default router;
