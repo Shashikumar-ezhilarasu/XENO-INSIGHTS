@@ -168,7 +168,7 @@ export default function ClassicWizard() {
                           onChange={e => setFilters(prev => ({...prev, vipOnly: e.target.checked}))}
                           className="rounded text-primary focus:ring-primary"
                         />
-                        <span>VIP Only (>$500 Spend)</span>
+                        <span>VIP Only (&gt;$500 Spend)</span>
                       </label>
                       <label className="flex items-center space-x-2 text-sm font-medium cursor-pointer">
                         <input 
