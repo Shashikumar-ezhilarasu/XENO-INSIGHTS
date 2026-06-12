@@ -21,7 +21,7 @@ import { initCron } from './config/cron';
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 // Enable Cross-Origin Resource Sharing (CORS)
 app.use(cors());
@@ -90,9 +90,9 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 // Start Express server and verify DB connectivity
 if (process.env.NODE_ENV !== 'test') {
   initCron();
-  app.listen(Number(port), '0.0.0.0', async () => {
+  app.listen(Number(PORT), '0.0.0.0', async () => {
     console.log(`========================================`);
-    console.log(`CRM Backend Server running on port ${port}`);
+    console.log(`CRM Backend Server running on port ${PORT}`);
     console.log(`========================================`);
 
     try {
