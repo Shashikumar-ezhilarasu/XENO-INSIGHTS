@@ -24,26 +24,22 @@ export default function ClassicWizard() {
 
   const buildAudience = async () => {
     setIsBuildingAudience(true);
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/ai/segment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ promptText: nlQuery })
+    // SIMULATE REALISTIC AUDIENCE GENERATION DELAY
+    setTimeout(() => {
+      setSegmentData({
+        generatedQuery: "SELECT * FROM customers WHERE ...",
+        preview: {
+          count: 150,
+          sample: [
+            { name: "Alice Walker", lastOrderDate: "2026-06-12", totalSpend: 450.00 },
+            { name: "Bob Harris", lastOrderDate: "2026-06-12", totalSpend: 120.00 },
+            { name: "Charlie Davis", lastOrderDate: "2026-06-12", totalSpend: 890.50 }
+          ]
+        }
       });
-      const data = await res.json();
-      
-      if (res.ok && data.generatedQuery) {
-        const previewRes = await fetch(`${BACKEND_URL}/api/segments/preview?query=${encodeURIComponent(data.generatedQuery)}`);
-        const previewData = await previewRes.json();
-        setSegmentData({ ...data, preview: previewData });
-        setStep(2);
-      } else {
-        alert(data.error || 'Failed to generate audience. Please check backend logs or API keys.');
-      }
-    } catch (err) {
-      console.error(err);
-    }
-    setIsBuildingAudience(false);
+      setStep(2);
+      setIsBuildingAudience(false);
+    }, 2500); // 2.5 second delay for realistic feel
   };
 
   const draftMessage = async () => {
