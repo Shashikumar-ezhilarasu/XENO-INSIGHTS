@@ -48,6 +48,15 @@ app.use('/api/ingest', ingestRouter);
 app.use('/api/channel', channelRouter);
 app.use('/api/ai', swarmRouter);
 
+// Root endpoint
+app.get('/', (req: Request, res: Response) => {
+  return res.status(200).json({
+    message: 'XENO CRM Backend API is live',
+    version: '1.0.0',
+    healthCheck: '/health'
+  });
+});
+
 // Health check endpoint (including database connection status check)
 app.get('/health', async (req: Request, res: Response) => {
   try {
