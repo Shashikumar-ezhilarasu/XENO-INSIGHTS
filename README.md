@@ -75,11 +75,13 @@ Integrates segment building and template composition into a single user-experien
 ### CDP Identity Resolution Engine
 A deterministic profile-stitching pipeline. Captures fragmented anonymous entries (e.g., offline POS checkout with only a phone number versus online newsletter signups with only an email) and executes an atomic `prisma.$transaction`. It merges historical records, combines total spends, transfers orders, and deletes duplicate customer rows.
 
-### Asynchronous Webhook Feedback Loop
-A non-blocking campaign transmission system. Once campaign execution starts, the system records communications as `PENDING` and triggers callbacks. Webhook routes (`/api/webhooks/receipt` and `/api/webhooks/channel-callback`) process callbacks (`PENDING -> SENT -> DELIVERED -> OPENED -> READ -> CLICKED -> FAILED`).
-To handle concurrent, out-of-order updates, the database updates utilize a logical precedence scale:
-* Updates are rejected if the incoming status ranks below the current database status (e.g., a delayed `DELIVERED` callback will not overwrite an existing `OPENED` state).
-* Conversions (e.g., `CLICKED` events) generate orders, increment campaign conversions, and attribute revenue directly back to campaign ROAS metrics.
+### Multi-Format Data Ingestion
+Accepts bulk CSV and JSON file uploads to seamlessly onboard external customer datasets. Validates payloads strictly using Zod schemas and executes atomic `prisma.customer.upsert` transactions, preventing duplicate entries by mapping against email addresses. Exposes a memory-efficient `POST /api/ingest/file` endpoint powered by Multer and Papaparse for scalable parsing.
+
+### Two-Service Asynchronous Webhook Architecture
+A strict, non-blocking campaign transmission system decoupled into two distinct services:
+1. **Stubbed Channel Service:** A simulated background worker (`/api/channel/send`) that mimics real-world carrier latency and drop-offs. It employs randomized execution delays (2s to 14s) to stagger state updates, simulating realistic delivery outcomes (80% CLICKED, 10% FAILED). It utilizes an exponential backoff retry loop (`Math.pow(2, attempt)`) to guarantee robust webhook callback transmission even during network instability.
+2. **CRM Webhook Receiver:** A strict state machine (`/api/webhooks/receipt`) that governs the communication lifecycle (`PENDING < SENT < DELIVERED < OPENED < READ < CLICKED < FAILED`). To handle high-volume, concurrent, or out-of-order webhook callbacks, it implements precedence validation within an interactive `prisma.$transaction`. Delayed callbacks (e.g., a `DELIVERED` event arriving after an `OPENED` event) are safely ignored to prevent state regression. Conversion events (like `CLICKED`) automatically increment campaign conversions and attribute calculated revenue directly to campaign ROAS metrics.
 
 ---
 
