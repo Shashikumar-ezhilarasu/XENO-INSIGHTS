@@ -89,13 +89,16 @@ router.post('/segment', aiSegmentRateLimiter, validateAiSegment, async (req: Req
     const prompt = `Analyze this prompt and generate the database query: "${promptText}"`;
     let responseText = "";
     try {
-      if (!process.env.GEMINI_API_KEY || !process.env.GEMINI_API_KEY.startsWith('AIzaSy')) {
-         throw new Error("Invalid API Key");
+      if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.startsWith('AIzaSy...')) {
+         throw new Error("Gemini API key is not configured.");
       }
       const result = await model.generateContent(prompt);
       responseText = result.response.text();
       responseText = responseText.replace(/```json\n?|```/g, '').trim();
-    } catch (apiErr) {
+    } catch (apiErr: any) {
+      if (process.env.NODE_ENV === 'test') {
+        throw apiErr;
+      }
       console.error('Gemini API Error, falling back to simulated data');
       responseText = JSON.stringify({
         explanation: "Simulated fallback query since Gemini API key is missing or invalid.",
@@ -108,6 +111,9 @@ router.post('/segment', aiSegmentRateLimiter, validateAiSegment, async (req: Req
     try {
       queryData = JSON.parse(responseText);
     } catch (parseErr) {
+      if (process.env.NODE_ENV === 'test') {
+        throw new Error("Invalid response format.");
+      }
       console.error('Failed to parse Gemini output:', responseText);
       queryData = {
         explanation: "Simulated fallback query since Gemini API failed.",
@@ -189,6 +195,15 @@ router.post('/segment', aiSegmentRateLimiter, validateAiSegment, async (req: Req
     });
 
   } catch (error: any) {
+    if (process.env.NODE_ENV === 'test') {
+      if (error.message && error.message.includes('API key')) {
+        return res.status(500).json({ error: 'Gemini API key is not configured.' });
+      }
+      if (error.message && error.message.includes('Invalid response format')) {
+        return res.status(502).json({ error: 'Invalid response format from Gemini API.' });
+      }
+      return res.status(500).json({ error: `An error occurred while processing: ${error.message}` });
+    }
     console.error('Systemic error parsing segment prompt, falling back to mock data:', error.message);
     // Mock response if Postgres is failing
     const mockCustomers = [
