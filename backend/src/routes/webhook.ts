@@ -21,7 +21,7 @@ const STATUS_PRECEDENCE: Record<string, number> = {
  * Consumes real-time webhook updates from the mock channel.
  * Body: { communicationId: string, status: string, errorMsg?: string, timestamp: string }
  */
-router.post('/receipt', validateWebhookCallback, async (req: Request, res: Response) => {
+router.post(['/receipt', '/channel-callback'], validateWebhookCallback, async (req: Request, res: Response) => {
   const { communicationId, status, errorMsg, orderValue } = req.body;
 
   if (!communicationId || !status) {
