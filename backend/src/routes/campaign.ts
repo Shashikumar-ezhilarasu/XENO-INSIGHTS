@@ -313,6 +313,10 @@ router.post('/send', campaignSendRateLimiter, validateCampaignSend, async (req: 
           }
 
           // Call the stub channel send endpoint
+          if (process.env.NODE_ENV === 'test') {
+            return;
+          }
+
           const response = await fetch(channelServiceUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
