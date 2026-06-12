@@ -76,12 +76,23 @@ Integrates segment building and template composition into a single user-experien
 A deterministic profile-stitching pipeline. Captures fragmented anonymous entries (e.g., offline POS checkout with only a phone number versus online newsletter signups with only an email) and executes an atomic `prisma.$transaction`. It merges historical records, combines total spends, transfers orders, and deletes duplicate customer rows.
 
 ### Multi-Format Data Ingestion
-Accepts bulk CSV and JSON file uploads to seamlessly onboard external customer datasets. Validates payloads strictly using Zod schemas and executes atomic `prisma.customer.upsert` transactions, preventing duplicate entries by mapping against email addresses. Exposes a memory-efficient `POST /api/ingest/file` endpoint powered by Multer and Papaparse for scalable parsing.
+Accepts bulk CSV and JSON file uploads to seamlessly onboard external customer datasets. Validates payloads strictly using Zod schemas and executes isolated, per-row `prisma.$transaction` database upsert and order generation blocks to prevent interactive transaction timeouts during large imports. Features key normalization that maps space-separated or snake_case headers (e.g. `loyalty_points`, `total_spends`) to camelCase model properties. Includes preprocessors to clean numeric inputs containing currency symbols, text suffixes, or emojis (e.g., parsing `"⚡ 89 pts"` or `"$12,500.50"` to clean float values). Exposes a memory-efficient `POST /api/ingest/file` endpoint powered by Multer and Papaparse.
+
+### Dynamic Database-Driven KPI Dashboard
+All metrics (Total Transaction Orders, Repeat Customer Rate, Total Net Sales Value) are calculated directly from live database registers using robust, DB-driven aggregation fallbacks. When detailed relational tables are empty (such as after raw customer file ingestion):
+* **Net Sales** falls back to summing all customer `totalSpends` values.
+* **Total Orders** defaults to counting customers with registered spends.
+* **Repeat Customer Rate** is computed based on customers exceeding a $100 lifetime spend threshold.
+* **Ledger Feeds & Sparklines** generate synthetic checkouts and map user `lastVisitDate` activity distributions over the last 7 days.
+* **Auto-Refresh Lifecycle**: Frontend `useEffect` hooks monitor onboarding state transitions to immediately refetch and display live metrics upon onboarding completion, eliminating manual page reloads.
 
 ### Two-Service Asynchronous Webhook Architecture
 A strict, non-blocking campaign transmission system decoupled into two distinct services:
 1. **Stubbed Channel Service:** A simulated background worker (`/api/channel/send`) that mimics real-world carrier latency and drop-offs. It employs randomized execution delays (2s to 14s) to stagger state updates, simulating realistic delivery outcomes (80% CLICKED, 10% FAILED). It utilizes an exponential backoff retry loop (`Math.pow(2, attempt)`) to guarantee robust webhook callback transmission even during network instability.
 2. **CRM Webhook Receiver:** A strict state machine (`/api/webhooks/receipt`) that governs the communication lifecycle (`PENDING < SENT < DELIVERED < OPENED < READ < CLICKED < FAILED`). To handle high-volume, concurrent, or out-of-order webhook callbacks, it implements precedence validation within an interactive `prisma.$transaction`. Delayed callbacks (e.g., a `DELIVERED` event arriving after an `OPENED` event) are safely ignored to prevent state regression. Conversion events (like `CLICKED`) automatically increment campaign conversions and attribute calculated revenue directly to campaign ROAS metrics.
+
+### Live API Root Responder
+Exposes a default root `GET /` router endpoint handler returning live system metrics, API status, version information, and healthcheck paths, preventing connection timeouts and connection-dropped errors on public cloud routers.
 
 ---
 
@@ -105,9 +116,9 @@ The system has been optimized to handle complex integration tests and connection
 * **The Issue:** The default direct connection to Supabase PostgreSQL on port `5432` uses session-level connections and is limited to 15 concurrent clients. Parallel integration tests or concurrent serverless executions quickly exhaust this pool, resulting in `EMAXCONNSESSION` errors.
 * **The Solution:** Configured the application to target Supabase's transaction pooler (port `6543` with `?pgbouncer=true&connection_limit=2`). This allows multiplexed query execution across multiple clients.
 
-### Sandbox Isolation in Tests
-* **The Issue:** Campaign executions schedule background callbacks (`setTimeout`) to mock delivery channels. When tests run, these delayed callbacks continue updating database rows while subsequent tests attempt to truncate tables, triggering database deadlocks.
-* **The Solution:** Added a bypass check in the mock channel driver (`backend/src/routes/channel.ts`) to skip scheduling background webhook updates when running under the Jest test environment (`process.env.NODE_ENV === 'test'`).
+### Sandbox Isolation and Test Timeout Enhancements
+* **The Issue:** Campaign executions schedule background callbacks (`setTimeout` and `setImmediate`) to mock delivery channels and dispatch webhook callbacks. During test execution, these background fetch operations attempt to contact the channel service, leading to network connection timeouts (`ETIMEDOUT` / `ECONNREFUSED`) that hang test threads. Additionally, heavy database setup and truncation routines on a remote pooler frequently exceed Jest's default 5-second test execution limits.
+* **The Solution:** Added a bypass check in the campaign runner (`backend/src/routes/campaign.ts`) to immediately return and skip background HTTP dispatches when `process.env.NODE_ENV === 'test'`. Similarly, background callback scheduling in `channel.ts` is bypassed. Increased Jest's global test timeout limit to 30 seconds (`--testTimeout=30000`) in `backend/package.json` to ensure database sandboxes setup and tear down reliably without flakiness.
 
 ### Test Error Propagation
 * **The Issue:** Under normal operation, the AI route gracefully handles Gemini errors by returning cached, simulated JSON objects to preserve UI usability. However, this prevented Jest integration tests from asserting on failures (such as missing API keys or malformed JSON).
@@ -156,6 +167,18 @@ The project is configured for Vercel using a root `vercel.json` file to manage b
 
 #### Build Step Configuration
 The build script in `backend/package.json` runs `"prisma generate && tsc"`. This automatically generates the Prisma Client and compiles the TypeScript code during Vercel's build phase, avoiding runtime engine errors.
+
+### Railway Backend Deployment
+The backend service can be deployed directly to Railway using the zero-configuration root `package.json` included in the project base. Railway will auto-detect the root `package.json`, install dependencies inside the `backend` directory, build the TypeScript files, and automatically sync the database schema when starting the Express server container:
+
+* **Configured Prefix Scripts**:
+  - `preinstall`: Installs the packages (`npm install --prefix backend`).
+  - `build`: Generates the Prisma client and compiles files (`npm run --prefix backend build`).
+  - `start`: Syncs database schema changes and runs the server (`prisma db push && node dist/app.js`).
+* **Environment Variables Setup**:
+  Add the following variables in the **Variables** tab of your Railway backend service dashboard:
+  - `DATABASE_URL`: Your Supabase transaction pooler URI (using port `6543`).
+  - `GEMINI_API_KEY`: Your Google Gemini API key.
 
 ### Local Development Guide
 
