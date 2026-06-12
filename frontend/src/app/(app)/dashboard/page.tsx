@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSharedState } from '../../../hooks/useSharedState';
 import { useLivePolling } from '../../../hooks/useLivePolling';
@@ -522,83 +522,87 @@ interface CustomerProfile {
   preferredCommunication?: string;
 }
 
-const MOCK_CUSTOMERS_360: CustomerProfile[] = [
-  {
-    id: 'cust-1',
-    name: 'Emma Smith',
-    email: 'emma.smith@example.com',
-    phone: '+14155552671',
-    totalSpends: 480.50,
-    loyaltyPoints: 120.5,
-    favoriteCategory: 'Coffee',
-    discountSeekingBehavior: 'HIGH',
-    preferredShoppingDay: 'Saturday',
-    referrerId: 'cust-3',
-  },
-  {
-    id: 'cust-2',
-    name: 'Liam Johnson',
-    email: 'liam.johnson@example.com',
-    phone: '+14155558192',
-    totalSpends: 90.00,
-    loyaltyPoints: 45.0,
-    favoriteCategory: 'Bakery',
-    discountSeekingBehavior: 'MID',
-    preferredShoppingDay: 'Sunday',
-    referrerId: null,
-  },
-  {
-    id: 'cust-3',
-    name: 'Olivia Williams',
-    email: 'olivia.williams@example.com',
-    phone: '+12025550143',
-    totalSpends: 1250.00,
-    loyaltyPoints: 310.2,
-    favoriteCategory: 'Apparel',
-    discountSeekingBehavior: 'LOW',
-    preferredShoppingDay: 'Friday',
-    referrerId: null,
-  },
-  {
-    id: 'cust-4',
-    name: 'Noah Brown',
-    email: 'noah.brown@example.com',
-    phone: '+13125559812',
-    totalSpends: 35.00,
-    loyaltyPoints: 15.0,
-    favoriteCategory: 'Coffee',
-    discountSeekingBehavior: 'HIGH',
-    preferredShoppingDay: 'Monday',
-    referrerId: 'cust-1',
-  },
-  {
-    id: 'cust-5',
-    name: 'Ava Jones',
-    email: 'ava.jones@example.com',
-    phone: '+16175550183',
-    totalSpends: 680.00,
-    loyaltyPoints: 240.0,
-    favoriteCategory: 'Beauty',
-    discountSeekingBehavior: 'MID',
-    preferredShoppingDay: 'Wednesday',
-    referrerId: null,
-  }
-];
-
-const MOCK_RFM = {
-  champions: {
-    count: 2,
-    customers: [MOCK_CUSTOMERS_360[0], MOCK_CUSTOMERS_360[2]]
-  },
-  atRisk: {
-    count: 1,
-    customers: [MOCK_CUSTOMERS_360[4]]
-  },
-  hibernating: {
-    count: 2,
-    customers: [MOCK_CUSTOMERS_360[1], MOCK_CUSTOMERS_360[3]]
+const getDynamicCategories = (industry: string) => {
+  switch(industry) {
+    case 'Food & Beverages': return ['Gourmet Meals', 'Fine Wine', 'Desserts', 'Craft Beer'];
+    case 'Fashion & Apparel': return ['Outerwear', 'Footwear', 'Accessories', 'Activewear'];
+    case 'Beauty & Cosmetics': return ['Skincare', 'Makeup', 'Haircare', 'Fragrance'];
+    case 'Accessories': return ['Watches', 'Necklaces', 'Bracelets', 'Rings'];
+    default: return ['Coffee', 'Bakery', 'Mugs', 'Beans']; // Coffee & Retail
   }
 };
+
+const getDynamicCustomers = (industry: string): CustomerProfile[] => {
+  const cats = getDynamicCategories(industry);
+  return [
+    {
+      id: 'cust-1',
+      name: 'Emma Smith',
+      email: 'emma.smith@example.com',
+      phone: '+14155552671',
+      totalSpends: 480.50,
+      loyaltyPoints: 120.5,
+      favoriteCategory: cats[0],
+      discountSeekingBehavior: 'HIGH',
+      preferredShoppingDay: 'Saturday',
+      referrerId: 'cust-3',
+    },
+    {
+      id: 'cust-2',
+      name: 'Liam Johnson',
+      email: 'liam.johnson@example.com',
+      phone: '+14155558192',
+      totalSpends: 90.00,
+      loyaltyPoints: 45.0,
+      favoriteCategory: cats[1],
+      discountSeekingBehavior: 'MID',
+      preferredShoppingDay: 'Sunday',
+      referrerId: null,
+    },
+    {
+      id: 'cust-3',
+      name: 'Olivia Williams',
+      email: 'olivia.williams@example.com',
+      phone: '+12025550143',
+      totalSpends: 1250.00,
+      loyaltyPoints: 310.2,
+      favoriteCategory: cats[2],
+      discountSeekingBehavior: 'LOW',
+      preferredShoppingDay: 'Friday',
+      referrerId: null,
+    },
+    {
+      id: 'cust-4',
+      name: 'Noah Brown',
+      email: 'noah.brown@example.com',
+      phone: '+13125559812',
+      totalSpends: 35.00,
+      loyaltyPoints: 15.0,
+      favoriteCategory: cats[0],
+      discountSeekingBehavior: 'HIGH',
+      preferredShoppingDay: 'Monday',
+      referrerId: 'cust-1',
+    },
+    {
+      id: 'cust-5',
+      name: 'Ava Jones',
+      email: 'ava.jones@example.com',
+      phone: '+16175550183',
+      totalSpends: 680.00,
+      loyaltyPoints: 240.0,
+      favoriteCategory: cats[3],
+      discountSeekingBehavior: 'MID',
+      preferredShoppingDay: 'Wednesday',
+      referrerId: null,
+    }
+  ];
+};
+
+const getDynamicRFM = (customers: CustomerProfile[]) => ({
+  champions: { count: 2, customers: [customers[0], customers[2]] },
+  atRisk: { count: 1, customers: [customers[4]] },
+  hibernating: { count: 2, customers: [customers[1], customers[3]] }
+});
 
 const MOCK_DASHBOARD = {
   totalCustomers: 100,
@@ -978,6 +982,10 @@ export default function OverviewPage() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionStatusText, setConnectionStatusText] = useState('');
 
+  // Dynamic Hooks for Presentation Simulation
+  const dynamicCustomers = useMemo(() => getDynamicCustomers(businessIndustry), [businessIndustry]);
+  const dynamicRFM = useMemo(() => getDynamicRFM(dynamicCustomers), [dynamicCustomers]);
+
   // Check onboarding on mount
   useEffect(() => {
     try {
@@ -1009,11 +1017,11 @@ export default function OverviewPage() {
             hibernating: data.hibernating
           });
         } else {
-          setRfmData(MOCK_RFM);
+          setRfmData(dynamicRFM);
         }
       } catch (e) {
         console.warn('Error fetching RFM data, using offline fallback:', e);
-        setRfmData(MOCK_RFM);
+        setRfmData(dynamicRFM);
       } finally {
         setRfmLoading(false);
       }
@@ -1036,14 +1044,14 @@ export default function OverviewPage() {
           setCustomers(json.data || []);
         } else if (active) {
           const lower = searchQuery.toLowerCase();
-          const filtered = MOCK_CUSTOMERS_360.filter(c => c.name.toLowerCase().includes(lower) || c.email.toLowerCase().includes(lower));
+          const filtered = dynamicCustomers.filter(c => c.name.toLowerCase().includes(lower) || c.email.toLowerCase().includes(lower));
           setCustomers(filtered);
         }
       } catch (e) {
         console.warn('Error fetching customers, using offline fallback:', e);
         if (active) {
           const lower = searchQuery.toLowerCase();
-          const filtered = MOCK_CUSTOMERS_360.filter(c => c.name.toLowerCase().includes(lower) || c.email.toLowerCase().includes(lower));
+          const filtered = dynamicCustomers.filter(c => c.name.toLowerCase().includes(lower) || c.email.toLowerCase().includes(lower));
           setCustomers(filtered);
         }
       } finally {

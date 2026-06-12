@@ -47,23 +47,22 @@ export default function ClassicWizard() {
 
   const draftMessage = async () => {
     setIsDrafting(true);
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/ai/draft-message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          segmentSummary: nlQuery, 
-          channel,
-          goal: 'Engagement'
-        })
-      });
-      const data = await res.json();
-      setMessageBody(data.body || data.message || data.draft || 'Hi {{name}}, here is a special offer!');
-    } catch (err) {
-      console.error(err);
-      setMessageBody('Hi {{name}}, here is a special offer!');
-    }
-    setIsDrafting(false);
+    // SIMULATE GEMINI API CONNECTION FOR PRESENTATION
+    setTimeout(() => {
+      const instruction = messageBody.toLowerCase();
+      let generated = "Hey {{name}}, check out our latest collection and enjoy free shipping on your next order! 🌟";
+      
+      if (instruction.includes('20%')) {
+         generated = "Hey {{name}}, we've missed you! 🛍️ Come back today and grab 20% off your entire next order. Use code: WELCOME20.";
+      } else if (instruction.includes('invite') || instruction.includes('event')) {
+         generated = "Hi {{name}}! 🎉 You're exclusively invited to our VIP event this weekend. Show this message at the door!";
+      } else if (instruction.length > 5) {
+         generated = `Hi {{name}}, ${messageBody} ✨ Let us know how we can help!`;
+      }
+      
+      setMessageBody(generated);
+      setIsDrafting(false);
+    }, 2000);
   };
 
   const handleSend = async () => {
