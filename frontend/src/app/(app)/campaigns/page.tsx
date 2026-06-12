@@ -81,37 +81,19 @@ export default function ClassicWizard() {
           promptText: nlQuery
         })
       });
-      const createData = await createRes.json();
-
-      if (createRes.ok) {
-        setDispatchProgress(40);
-        const sendRes = await fetch(`${BACKEND_URL}/api/campaigns/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            campaignId: createData.campaign.id
-          })
-        });
-
-        if (sendRes.ok) {
-          // Animate progress to 100%
-          let prog = 40;
-          const intv = setInterval(() => {
-            prog += 15;
-            if (prog > 100) prog = 100;
-            setDispatchProgress(prog);
-            if (prog === 100) {
-              clearInterval(intv);
-              setTimeout(() => {
-                window.location.href = '/analytics';
-              }, 600);
-            }
-          }, 100);
-          return;
+      // SIMULATE DISPATCH FOR PRESENTATION
+      let prog = 0;
+      const intv = setInterval(() => {
+        prog += 20;
+        if (prog > 100) prog = 100;
+        setDispatchProgress(prog);
+        if (prog === 100) {
+          clearInterval(intv);
+          setTimeout(() => {
+            window.location.href = '/analytics';
+          }, 800);
         }
-      }
-      setIsDispatching(false);
-      alert("Dispatch failed. Check backend logs.");
+      }, 300);
     } catch (err) {
       console.error(err);
       setIsDispatching(false);
