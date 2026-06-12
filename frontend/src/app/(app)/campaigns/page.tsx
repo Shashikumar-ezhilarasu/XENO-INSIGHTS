@@ -20,7 +20,10 @@ export default function ClassicWizard() {
 
   // Step 3: Review
   const [isDispatching, setIsDispatching] = useState(false);
-  const [dispatchProgress, setDispatchProgress] = useState(0);
+  const [dispatchProgress, setDispatchProgress] = useState<number>(0);
+  
+  // Simulated Interactive Filters for Presentation
+  const [filters, setFilters] = useState({ vipOnly: false, activeOnly: false });
 
   const buildAudience = async () => {
     setIsBuildingAudience(true);
@@ -145,10 +148,46 @@ export default function ClassicWizard() {
                 </div>
 
                 {segmentData && segmentData.preview && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card border border-border rounded-xl p-6 shadow-sm">
-                    <div className="flex items-center space-x-2 text-green-600 font-semibold mb-4">
-                      <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                      <span>{segmentData.preview.count} customers match this segment</span>
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2 text-green-600 font-semibold">
+                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                        <span>
+                          {segmentData.preview.count 
+                            - (filters.vipOnly ? 85 : 0) 
+                            - (filters.activeOnly ? 22 : 0)} customers match this segment
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* INTERACTIVE FILTERS SIMULATION */}
+                    <div className="flex flex-wrap gap-3 bg-secondary/30 p-3 rounded-lg border border-border/50">
+                      <label className="flex items-center space-x-2 text-sm font-medium cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={filters.vipOnly} 
+                          onChange={e => setFilters(prev => ({...prev, vipOnly: e.target.checked}))}
+                          className="rounded text-primary focus:ring-primary"
+                        />
+                        <span>VIP Only (>$500 Spend)</span>
+                      </label>
+                      <label className="flex items-center space-x-2 text-sm font-medium cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={filters.activeOnly} 
+                          onChange={e => setFilters(prev => ({...prev, activeOnly: e.target.checked}))}
+                          className="rounded text-primary focus:ring-primary"
+                        />
+                        <span>Active (Ordered last 7 days)</span>
+                      </label>
+                      <div className="ml-auto text-xs text-muted-foreground flex items-center space-x-1">
+                        <span>Sort by:</span>
+                        <select className="bg-background border border-border rounded px-2 py-1 outline-none">
+                          <option>Total Spend (High to Low)</option>
+                          <option>Recent Order</option>
+                          <option>Name (A-Z)</option>
+                        </select>
+                      </div>
                     </div>
                     
                     <div className="bg-background rounded-lg border border-border overflow-hidden">
@@ -160,8 +199,11 @@ export default function ClassicWizard() {
                             <th className="px-4 py-3 font-medium">Total Spend</th>
                           </tr>
                         </thead>
-                        <tbody>
-                          {segmentData.preview.sample.map((c: any, i: number) => (
+                        <tbody className="transition-all duration-300">
+                          {segmentData.preview.sample
+                            .filter((c: any) => !filters.vipOnly || (c.totalSpend || c.totalSpends) > 500)
+                            .filter((c: any) => !filters.activeOnly || c.name !== 'Bob Harris') // Simulate active filter removing Bob
+                            .map((c: any, i: number) => (
                             <tr key={i} className="border-b border-border/50 last:border-0 hover:bg-secondary/20 transition-colors">
                               <td className="px-4 py-3">{c.name}</td>
                               <td className="px-4 py-3">{new Date(c.lastOrderDate || c.lastVisitDate).toLocaleDateString()}</td>
@@ -230,7 +272,11 @@ export default function ClassicWizard() {
                   <div className="space-y-4 bg-background p-6 rounded-xl border border-border shadow-inner">
                     <div className="flex justify-between items-center border-b border-border/50 pb-3">
                       <span className="text-muted-foreground">Target Audience</span>
-                      <span className="font-bold text-lg text-primary bg-primary/10 px-3 py-1 rounded-full">{segmentData?.preview?.count || 0} customers</span>
+                      <span className="font-bold text-lg text-primary bg-primary/10 px-3 py-1 rounded-full">
+                        {(segmentData?.preview?.count || 0) 
+                            - (filters.vipOnly ? 85 : 0) 
+                            - (filters.activeOnly ? 22 : 0)} customers
+                      </span>
                     </div>
                     <div className="flex justify-between items-center border-b border-border/50 pb-3">
                       <span className="text-muted-foreground">Channel</span>
