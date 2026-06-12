@@ -89,13 +89,14 @@ Follow these steps to deploy XENO-INSIGHTS locally for development or QA testing
 
 ### 1. Prerequisites
 - Node.js (v18+)
-- PostgreSQL (Local or Cloud instance)
+- Supabase PostgreSQL Database (or local Postgres instance)
 - A valid Google Gemini API Key (`GEMINI_API_KEY`)
 
 ### 2. Environment Configuration
 Create a `.env` file in the `/backend` directory:
 ```bash
-DATABASE_URL="postgresql://user:password@localhost:5432/xeno_crm?schema=public"
+# We strongly recommend using the Supabase IPv4 Session Pooler URL
+DATABASE_URL="postgresql://postgres.[project]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres?schema=public"
 PORT=3000
 GEMINI_API_KEY="AIzaSyYourGeminiApiKeyHere..."
 ```

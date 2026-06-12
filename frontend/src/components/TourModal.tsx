@@ -12,14 +12,21 @@ export default function TourModal() {
   const router = useRouter();
 
   useEffect(() => {
-    // Check if the user has seen the tour before
-    const hasSeenTour = localStorage.getItem('xeno_has_seen_tour');
-    if (!hasSeenTour) {
-      setIsOpen(true);
-      router.push('/dashboard');
-    }
+    // Wait for the user to complete the dashboard onboarding before showing the tour
+    const checkTourState = () => {
+      const hasSeenTour = localStorage.getItem('xeno_has_seen_tour');
+      const hasOnboarded = localStorage.getItem('xeno_onboarded');
+      
+      if (!hasSeenTour && hasOnboarded === 'true') {
+        setIsOpen(true);
+        router.push('/dashboard');
+      }
+    };
 
-    // Listen for custom event from the Help button in the navbar
+    // Check immediately on mount
+    checkTourState();
+
+    // Listen for custom event from the Help button in the navbar or onboarding completion
     const handleOpenTour = () => {
       setIsOpen(true);
       router.push('/dashboard');
@@ -78,7 +85,7 @@ export default function TourModal() {
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full min-w-[320px] max-w-3xl bg-card rounded-2xl shadow-2xl border border-border z-10 overflow-auto resize cursor-grab active:cursor-grabbing"
+          className="relative w-full min-w-[320px] max-w-3xl max-h-[85vh] bg-card rounded-2xl shadow-2xl border border-border z-10 overflow-y-auto resize cursor-grab active:cursor-grabbing"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-secondary/30 pointer-events-none">

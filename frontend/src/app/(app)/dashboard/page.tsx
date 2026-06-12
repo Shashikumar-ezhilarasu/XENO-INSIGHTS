@@ -1256,6 +1256,9 @@ export default function OverviewPage() {
                     localStorage.setItem('xeno_db_uri', dbUri);
                     setIsOnboarded(true);
                     setIsConnecting(false);
+                    
+                    // Trigger the Tour Modal now that onboarding is complete!
+                    window.dispatchEvent(new Event('open-tour'));
                   }}
                   disabled={isConnecting}
                   className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs"
