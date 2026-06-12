@@ -979,6 +979,7 @@ export default function OverviewPage() {
   const [businessIndustry, setBusinessIndustry] = useState('Coffee & Retail');
   const [mainProduct, setMainProduct] = useState('');
   const [dbUri, setDbUri] = useState('postgresql://localhost:5432/xeno_crm');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionStatusText, setConnectionStatusText] = useState('');
 
@@ -1007,6 +1008,7 @@ export default function OverviewPage() {
   // Fetch RFM customer clusters
   useEffect(() => {
     async function loadRfm() {
+      if (!isOnboarded) return;
       try {
         const res = await fetch(`${BACKEND_URL}/api/customers/rfm`);
         if (res.ok) {
@@ -1017,22 +1019,23 @@ export default function OverviewPage() {
             hibernating: data.hibernating
           });
         } else {
-          setRfmData(dynamicRFM);
+          setRfmData({ champions: { count: 0, customers: [] }, atRisk: { count: 0, customers: [] }, hibernating: { count: 0, customers: [] } });
         }
       } catch (e) {
-        console.warn('Error fetching RFM data, using offline fallback:', e);
-        setRfmData(dynamicRFM);
+        console.warn('Error fetching RFM data:', e);
+        setRfmData({ champions: { count: 0, customers: [] }, atRisk: { count: 0, customers: [] }, hibernating: { count: 0, customers: [] } });
       } finally {
         setRfmLoading(false);
       }
     }
     loadRfm();
-  }, []);
+  }, [isOnboarded]);
 
   // Fetch customer lists for 360-degree view with search support
   useEffect(() => {
     let active = true;
     async function fetchCustomers() {
+      if (!isOnboarded) return;
       setCustomersLoading(true);
       try {
         const url = searchQuery 
@@ -1043,16 +1046,12 @@ export default function OverviewPage() {
           const json = await res.json();
           setCustomers(json.data || []);
         } else if (active) {
-          const lower = searchQuery.toLowerCase();
-          const filtered = dynamicCustomers.filter(c => c.name.toLowerCase().includes(lower) || c.email.toLowerCase().includes(lower));
-          setCustomers(filtered);
+          setCustomers([]);
         }
       } catch (e) {
-        console.warn('Error fetching customers, using offline fallback:', e);
+        console.warn('Error fetching customers:', e);
         if (active) {
-          const lower = searchQuery.toLowerCase();
-          const filtered = dynamicCustomers.filter(c => c.name.toLowerCase().includes(lower) || c.email.toLowerCase().includes(lower));
-          setCustomers(filtered);
+          setCustomers([]);
         }
       } finally {
         if (active) setCustomersLoading(false);
@@ -1067,28 +1066,39 @@ export default function OverviewPage() {
       active = false;
       clearTimeout(delayDebounceFn);
     };
-  }, [searchQuery]);
+  }, [searchQuery, isOnboarded]);
 
   // Fetch dashboard dynamic metrics
   useEffect(() => {
     async function loadDashboardStats() {
+      if (!isOnboarded) return;
       try {
         const res = await fetch(`${BACKEND_URL}/api/analytics/dashboard`);
         if (res.ok) {
           const data = await res.json();
           setDashboardStats(data);
         } else {
-          setDashboardStats(MOCK_DASHBOARD);
+          setDashboardStats({
+            totalCustomers: 0, totalOrders: 0, netSales: 0, repeatRate: 0,
+            recencyDistribution: { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 },
+            funnel: { sent: 0, delivered: 0, opened: 0, clicked: 0, failed: 0, deliveredPercent: 0, openedPercent: 0, failedPercent: 0 },
+            orderFrequencySeries: [0, 0, 0, 0, 0, 0, 0]
+          });
         }
       } catch (err) {
-        console.warn('Failed to load dashboard statistics, using mock:', err);
-        setDashboardStats(MOCK_DASHBOARD);
+        console.warn('Failed to load dashboard statistics:', err);
+        setDashboardStats({
+          totalCustomers: 0, totalOrders: 0, netSales: 0, repeatRate: 0,
+          recencyDistribution: { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 },
+          funnel: { sent: 0, delivered: 0, opened: 0, clicked: 0, failed: 0, deliveredPercent: 0, openedPercent: 0, failedPercent: 0 },
+          orderFrequencySeries: [0, 0, 0, 0, 0, 0, 0]
+        });
       } finally {
         setDashboardLoading(false);
       }
     }
     loadDashboardStats();
-  }, []);
+  }, [isOnboarded]);
 
   // Derived SaaS Metrics (Campaign audits counts)
   const totalCampaigns = analytics.length;
@@ -1214,7 +1224,7 @@ export default function OverviewPage() {
               <h3 className="text-sm font-bold uppercase tracking-wider text-purple-600">Step 2: Connect Datasource</h3>
               
               <div className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/10 text-xs text-purple-900 dark:text-purple-300 font-medium leading-relaxed">
-                ℹ️ Connecting your business profile allows XENO CRM to directly compile customer aggregates, lifetime spend records, and transaction frequencies from your database tables.
+                ℹ️ Connecting your business profile allows XENO CRM to directly compile customer aggregates, lifetime spend records, and transaction frequencies from your database tables. You can also upload a CSV or JSON file to batch import historical data.
               </div>
 
               <div className="space-y-1.5">
@@ -1224,18 +1234,38 @@ export default function OverviewPage() {
                   value={dbUri}
                   onChange={(e) => setDbUri(e.target.value)}
                   className="w-full bg-secondary/35 border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-mono focus:outline-none focus:border-purple-500"
+                  disabled={isConnecting || selectedFile !== null}
+                />
+              </div>
+
+              <div className="flex items-center gap-4 my-2">
+                <div className="h-px bg-border flex-1"></div>
+                <span className="text-xs text-neutral-500 font-bold uppercase tracking-wider">OR</span>
+                <div className="h-px bg-border flex-1"></div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider block">Upload Data File (CSV / JSON)</label>
+                <input
+                  type="file"
+                  accept=".csv, .json, application/json, text/csv"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setSelectedFile(file);
+                  }}
+                  className="w-full bg-secondary/35 border border-border rounded-xl px-4 py-2 text-xs text-foreground focus:outline-none focus:border-purple-500 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 dark:file:bg-purple-900/30 dark:file:text-purple-300"
                   disabled={isConnecting}
                 />
               </div>
 
               {isConnecting && (
-                <div className="flex items-center gap-3 p-3 bg-secondary/30 border border-border rounded-xl text-xs text-neutral-400 font-medium">
+                <div className="flex items-center gap-3 p-3 bg-secondary/30 border border-border rounded-xl text-xs text-neutral-400 font-medium mt-4">
                   <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
                   <span>{connectionStatusText}</span>
                 </div>
               )}
 
-              <div className="flex justify-between items-center pt-4">
+              <div className="flex justify-between items-center pt-4 mt-2">
                 <Button 
                   variant="secondary"
                   onClick={() => setOnboardingStep(1)}
@@ -1248,12 +1278,35 @@ export default function OverviewPage() {
                 <Button 
                   onClick={async () => {
                     setIsConnecting(true);
-                    setConnectionStatusText('Establishing database link...');
-                    await new Promise(r => setTimeout(r, 800));
-                    setConnectionStatusText('Reading tables [Customer, Order, Campaign]...');
-                    await new Promise(r => setTimeout(r, 800));
-                    setConnectionStatusText('Syncing total checkouts, net sales, and RFM scores...');
-                    await new Promise(r => setTimeout(r, 800));
+                    
+                    if (selectedFile) {
+                      setConnectionStatusText('Uploading and parsing data file...');
+                      const formData = new FormData();
+                      formData.append('file', selectedFile);
+                      try {
+                        const res = await fetch(`${BACKEND_URL}/api/ingest/file`, {
+                          method: 'POST',
+                          body: formData
+                        });
+                        if (!res.ok) throw new Error('Upload failed');
+                        const data = await res.json();
+                        setConnectionStatusText(`Ingestion Success! Processed ${data.summary?.processed || 0} records...`);
+                        await new Promise(r => setTimeout(r, 1000));
+                      } catch (e) {
+                         setConnectionStatusText('Upload Failed. Please check the backend connection.');
+                         await new Promise(r => setTimeout(r, 2000));
+                         setIsConnecting(false);
+                         return;
+                      }
+                    } else {
+                      setConnectionStatusText('Establishing database link...');
+                      await new Promise(r => setTimeout(r, 800));
+                      setConnectionStatusText('Reading tables [Customer, Order, Campaign]...');
+                      await new Promise(r => setTimeout(r, 800));
+                      setConnectionStatusText('Syncing total checkouts, net sales, and RFM scores...');
+                      await new Promise(r => setTimeout(r, 800));
+                    }
+                    
                     setConnectionStatusText('Database Connection Success!');
                     await new Promise(r => setTimeout(r, 400));
                     
