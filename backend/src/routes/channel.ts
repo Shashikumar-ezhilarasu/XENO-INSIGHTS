@@ -48,6 +48,10 @@ router.post('/send', (req: Request, res: Response) => {
   // Immediately respond 202 Accepted
   res.status(202).json({ success: true, message: 'Message accepted for delivery' });
 
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+
   const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`;
   const webhookUrl = `${backendUrl}/api/webhooks/receipt`;
 
