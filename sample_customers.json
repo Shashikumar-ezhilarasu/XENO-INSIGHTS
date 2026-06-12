@@ -1,0 +1,57 @@
+[
+  {
+    "name": "Arjun Sharma",
+    "email": "arjun.sharma@example.com",
+    "phone": "+919876543210",
+    "totalSpends": 12500.50,
+    "loyaltyPoints": 1250,
+    "favoriteCategory": "Coffee",
+    "location": "Chennai, India",
+    "modeOfPayment": "UPI",
+    "preferredCommunication": "WHATSAPP"
+  },
+  {
+    "name": "Priya Patel",
+    "email": "priya.patel@example.com",
+    "phone": "+919876543211",
+    "totalSpends": 8400.00,
+    "loyaltyPoints": 840,
+    "favoriteCategory": "Bakery",
+    "location": "Bengaluru, India",
+    "modeOfPayment": "CREDIT_CARD",
+    "preferredCommunication": "EMAIL"
+  },
+  {
+    "name": "Rahul Verma",
+    "email": "rahul.verma@example.com",
+    "phone": "+919876543212",
+    "totalSpends": 3200.75,
+    "loyaltyPoints": 320,
+    "favoriteCategory": "Coffee",
+    "location": "Mumbai, India",
+    "modeOfPayment": "UPI",
+    "preferredCommunication": "WHATSAPP"
+  },
+  {
+    "name": "Sneha Rao",
+    "email": "sneha.rao@example.com",
+    "phone": "+919876543213",
+    "totalSpends": 21000.00,
+    "loyaltyPoints": 2100,
+    "favoriteCategory": "Merchandise",
+    "location": "Delhi, India",
+    "modeOfPayment": "DEBIT_CARD",
+    "preferredCommunication": "SMS"
+  },
+  {
+    "name": "Vikram Singh",
+    "email": "vikram.singh@example.com",
+    "phone": "+919876543214",
+    "totalSpends": 150.00,
+    "loyaltyPoints": 15,
+    "favoriteCategory": "Coffee",
+    "location": "Chennai, India",
+    "modeOfPayment": "CASH",
+    "preferredCommunication": "WHATSAPP"
+  }
+]
