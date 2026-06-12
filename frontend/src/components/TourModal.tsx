@@ -41,6 +41,7 @@ export default function TourModal() {
   const handleClose = () => {
     setIsOpen(false);
     localStorage.setItem('xeno_has_seen_tour', 'true');
+    router.push('/dashboard'); // Route back to overview when tour completes
   };
 
   const handleStepChange = (step: number) => {
@@ -68,12 +69,12 @@ export default function TourModal() {
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-        {/* Backdrop */}
+        {/* Backdrop - Lower opacity so the app behind is highly visible */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+          className="absolute inset-0 bg-background/30 backdrop-blur-[2px]"
           onClick={handleClose}
         />
 
