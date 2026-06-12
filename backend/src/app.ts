@@ -90,7 +90,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 // Start Express server and verify DB connectivity
 if (process.env.NODE_ENV !== 'test') {
   initCron();
-  app.listen(port, async () => {
+  app.listen(Number(port), '0.0.0.0', async () => {
     console.log(`========================================`);
     console.log(`CRM Backend Server running on port ${port}`);
     console.log(`========================================`);
