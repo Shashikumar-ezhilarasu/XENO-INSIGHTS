@@ -1,7 +1,11 @@
-import React from 'react';
+'use client';
+
+import React, { useEffect } from 'react';
 import Sidebar from '../../components/shared/sidebar';
 import Navigation from '../../components/shared/navigation';
-import AuthGuard from '../../components/AuthGuard';
+import { useRouter } from 'next/navigation';
+import { useTenant } from '../../lib/authContext';
+import { Loader2 } from 'lucide-react';
 import { QueueProvider } from '../../lib/queueContext';
 
 export default function AppLayout({
@@ -9,9 +13,25 @@ export default function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const { isAuthenticated, isLoading } = useTenant();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isLoading, isAuthenticated, router]);
+
+  if (isLoading || !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center space-y-4">
+        <Loader2 className="w-8 h-8 animate-spin text-foreground" />
+      </div>
+    );
+  }
+
   return (
-    <AuthGuard>
-      <QueueProvider>
+    <QueueProvider>
         <div className="flex min-h-screen">
           {/* Persistent Sidebar */}
           <Sidebar />
@@ -28,6 +48,5 @@ export default function AppLayout({
           </div>
         </div>
       </QueueProvider>
-    </AuthGuard>
   );
 }

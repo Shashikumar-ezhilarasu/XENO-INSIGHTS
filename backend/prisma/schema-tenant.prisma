@@ -1,0 +1,138 @@
+// ============================================================
+// TENANT DATABASE SCHEMA
+// schema-tenant.prisma
+//
+// Stores brand account data, user auth, team members,
+// preferences, AI usage limits, and notification settings.
+// Accessed via a second Prisma client (prismaT).
+//
+// SEPARATE FROM: schema.prisma (customer/order/campaign data)
+// CONNECTION: DATABASE_URL_TENANT env var → Supabase project #2
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/tenant-client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL_TENANT")
+  directUrl = env("DIRECT_URL_TENANT")
+}
+
+// ── Brand Account ──────────────────────────────────────────
+model TenantAccount {
+  id               String   @id @default(uuid())
+  email            String   @unique
+  passwordHash     String
+  brandName        String
+  brandCategory    String   // coffee_cafe | retail | food_beverage | fashion_apparel | beauty_cosmetics | jewelry_accessories
+  planTier         String   @default("starter") // starter | growth | enterprise
+  campaignLimit    Int      @default(10)        // max campaigns per month
+  aiCallLimit      Int      @default(100)       // max AI calls per month
+  aiCallsUsed      Int      @default(0)
+  campaignsCreated Int      @default(0)
+  language         String   @default("en")
+  timezone         String   @default("Asia/Kolkata")
+  currency         String   @default("INR")
+  logoUrl          String?
+  accentColor      String   @default("#6366F1")
+  onboardingDone   Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  preferences      TenantPreferences?
+  teamMembers      TeamMember[]
+  aiUsageLogs      AiUsageLog[]
+  notificationSettings NotificationSettings?
+
+  @@map("tenant_accounts")
+}
+
+// ── Brand Preferences (all customizations) ─────────────────
+model TenantPreferences {
+  id                    String   @id @default(uuid())
+  tenantId              String   @unique
+  tenant                TenantAccount @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Brand voice and AI behavior
+  brandVoice            String   @default("friendly")  // friendly | formal | witty | urgent
+  defaultChannel        String   @default("WhatsApp")
+  preferredSendTime     String   @default("10:00")     // HH:MM local time
+  
+  // Category-specific product labels
+  productLabels         Json     @default("{}")         // { "primary": "Coffee", "secondary": "Pastry" }
+  
+  // KPI labels per category
+  kpiPrimaryLabel       String   @default("Orders")
+  kpiRevenueLabel       String   @default("Revenue")
+  kpiCustomerLabel      String   @default("Customers")
+  
+  // Saved segment presets
+  savedSegments         Json     @default("[]")
+  
+  // Active promo codes
+  activePromoCodes      Json     @default("[]")
+  
+  // Campaign goals
+  primaryCampaignGoal   String   @default("retention")  // retention | acquisition | upsell | reactivation
+  
+  // Gamification defaults
+  defaultSpinPrizes     String   @default("Free Item, 50 Pts, 10% Off, Try Again")
+  loyaltyPointsPerSpend Float    @default(1.0)           // points per $1 spent
+
+  updatedAt             DateTime @updatedAt
+
+  @@map("tenant_preferences")
+}
+
+// ── Team Members ────────────────────────────────────────────
+model TeamMember {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      TenantAccount @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  email       String
+  role        String   @default("viewer")  // admin | editor | viewer
+  avatarUrl   String?
+  lastActiveAt DateTime?
+  invitedAt   DateTime @default(now())
+  acceptedAt  DateTime?
+  isActive    Boolean  @default(true)
+
+  @@unique([tenantId, email])
+  @@map("team_members")
+}
+
+// ── AI Usage Logs ───────────────────────────────────────────
+model AiUsageLog {
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       TenantAccount @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  endpoint     String        // e.g. /api/ai/orchestrate-campaign
+  promptExcerpt String       @db.VarChar(100)
+  tokensIn     Int      @default(0)
+  tokensOut    Int      @default(0)
+  totalTokens  Int      @default(0)
+  latencyMs    Int      @default(0)
+  status       String   @default("success")  // success | fallback | error
+  model        String   @default("gemini-1.5-flash")
+  createdAt    DateTime @default(now())
+
+  @@map("ai_usage_logs")
+}
+
+// ── Notification Settings ───────────────────────────────────
+model NotificationSettings {
+  id                    String   @id @default(uuid())
+  tenantId              String   @unique
+  tenant                TenantAccount @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaignCompletedEmail Boolean @default(true)
+  weeklyReportEmail     Boolean @default(true)
+  aiLimitWarningEmail   Boolean @default(true)
+  lowDeliveryAlertEmail Boolean @default(true)
+  updatedAt             DateTime @updatedAt
+
+  @@map("notification_settings")
+}

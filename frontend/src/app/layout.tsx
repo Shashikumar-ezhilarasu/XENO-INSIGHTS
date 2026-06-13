@@ -2,6 +2,7 @@ import './globals.css';
 import React from 'react';
 import { SharedStateProvider } from '../hooks/useSharedState';
 import { SimulationProvider } from '../components/SimulationProvider';
+import { AuthProvider } from '../lib/authContext';
 
 export const metadata = {
   title: 'XENO AI SaaS Marketing CRM',
@@ -22,11 +23,13 @@ export default function RootLayout({
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
       </head>
       <body className="font-sans antialiased bg-background text-foreground selection:bg-foreground selection:text-background min-h-screen">
-        <SharedStateProvider>
-          <SimulationProvider>
-            {children}
-          </SimulationProvider>
-        </SharedStateProvider>
+        <AuthProvider>
+          <SharedStateProvider>
+            <SimulationProvider>
+              {children}
+            </SimulationProvider>
+          </SharedStateProvider>
+        </AuthProvider>
       </body>
     </html>
   );

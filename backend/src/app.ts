@@ -19,6 +19,8 @@ import { initCron } from './config/cron';
 // FUTURE ENHANCEMENT: Enable when queue infrastructure is active
 // import { startAllWorkers } from './config/workers';
 import queueRouter from './routes/queue';
+import { authRouter } from './routes/auth';
+import { tenantRouter } from './routes/tenant';
 import { requestIdMiddleware, requestLogger, payloadSizeGuard, queryInjectionGuard } from './middleware/security';
 
 // Load environment variables
@@ -51,6 +53,8 @@ app.use('/api/ingest', ingestRouter);
 app.use('/api/channel', channelRouter);
 app.use('/api/ai', swarmRouter);
 app.use('/api/queue', queueRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/tenant', tenantRouter);
 
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
