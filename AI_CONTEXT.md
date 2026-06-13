@@ -1,54 +1,38 @@
-# XENO-INSIGHTS: AI Context & Memory Bank
+# XENO CRM - AI Context Memory
 
-## Purpose
-This file serves as the core context memory for any AI Agent continuing work on the XENO-INSIGHTS project. Read this file to understand the architecture, current state, design patterns, and known issues.
+This document serves as a "brain dump" and architectural context map for any future AI or developer working on the XENO CRM codebase.
 
-## Project Overview
-XENO-INSIGHTS is a Next-Gen AI-Native Customer Data Platform (CDP) and Growth CRM.
-It features a decoupled architecture:
-1. **Frontend:** Next.js 14 App Router (React), Tailwind CSS, Framer Motion, Recharts.
-2. **Backend:** Node.js, Express, Prisma ORM, PostgreSQL, Redis, BullMQ.
-3. **Channel Simulators:** 3 independent Node.js Express servers simulating external MCP (Model Context Protocol) channels (WhatsApp, SMS, Email/RCS).
+## Product Philosophy
+Xeno CRM is an **AI-native marketing platform** designed not as a collection of disjointed tools, but as a single, cohesive customer journey. Data flows sequentially: 
+`Ingestion → Audience AI Segmentation → Campaign Orchestration → Simulation/Execution → Delivery Analytics`.
 
-## Core Architectures & Workflows
+## Core Features & System Architecture
 
-### 1. The Communication Lifecycle (Async Callback Loop)
-This is the most critical workflow evaluated in this project:
-- A user launches a campaign via the UI -> `POST /api/campaigns/send`.
-- The CRM creates `Communication` records (`PENDING`) in PostgreSQL and pushes them to a Redis queue.
-- The `outboundWorker` (BullMQ) processes the queue (`concurrency: 50`) and dispatches a synchronous `HTTP POST` to the respective Channel Simulator (e.g., `whatsapp-mcp`).
-- The **Channel Simulator** accepts the request, returns `HTTP 200 OK` instantly, and spawns a background task (`simulateDelivery`).
-- `simulateDelivery` uses a probabilistic model (based on channel delivery/open/click rates) to schedule delayed events.
-- The Simulator fires `POST` callbacks back to the CRM's Webhook Ingestion endpoint (`/api/webhooks/receipt`).
-- The CRM updates the database state (`SENT` -> `DELIVERED` -> `OPENED` -> `CLICKED` -> `CONVERTED`), maintaining strict chronological idempotency via a `STATUS_PRECEDENCE` dictionary.
+### 1. Dual-Database Architecture
+- **Application DB** (`prisma/schema.prisma`): Handles high-volume transactional data, audience metrics, campaign logs, and webhook events.
+- **Tenant DB** (`prisma/schema-tenant.prisma`): Acts as the source of truth for workspace configurations, Business Profiles (Accent colors, KPI labels, industry categories), and global AI prompts.
 
-### 2. BullMQ & Resiliency
-- We use `ioredis` with `maxRetriesPerRequest: null` so standard temporary Redis outages do not crash the Node process.
-- Background jobs that fail are retried with exponential backoff.
-- Exhausted retries are sent to the Dead Letter Queue (DLQ) handler, marking the communication `FAILED` in the DB.
+### 2. Frontend Modules & Information Architecture
+- **Dashboard (`/dashboard`)**: The landing page. Handles onboarding, database connection, CSV uploads, and displays high-level business KPIs pulled from the Tenant DB.
+- **Customers (`/customers`)**: Replaces the old `/nudge` module. Contains the customer directory, RFM cluster segmentation, and "Quick Nudge" functionality for individual engagement.
+- **Campaign Manager (`/campaigns`)**: The core AI Orchestrator. Users select a target audience and use Gemini AI to generate copy. It supports multiple `campaignType`s (Standard, Loyalty, Spin Wheel, Scratch Card). Gamification is natively integrated here, not isolated.
+- **Operations Simulator (`/simulator`)**: Real-time observability dashboard for tracking BullMQ workers, webhook idempotency, Dead Letter Queues, and campaign delivery logs.
+- **Analytics (`/analytics`)**: Focuses purely on post-campaign conversion metrics, ROAS, and offer redemption tracking.
+- **Workspace Settings (`/workspace/profile`)**: Replaces the old `/settings` route. Contains global configurations synced with the Tenant DB.
 
-### 3. Frontend Restructuring & Demo Flow (Latest)
-- The UI originally contained "island" features (Nudge Engine, Gamification Studio) and mock workflows (`builder/page.tsx`).
-- **Recent Update:** The mock `builder` was completely deleted to force all traffic through the real Gemini `api/ai/segment` integration.
-- **Demo Architecture:** The `SystemMonitorPanel.tsx` was overhauled to explicitly expose backend reliability features (BullMQ Concurrency, Rate Limits, DLQ routing) and visualize the Webhook Idempotency (Status Precedence map).
-- **Analytics:** `/analytics/page.tsx` was updated to explicitly show the `Converted` funnel state and append `✔ Triggered by CONVERTED webhook` to revenue metrics, tying the frontend directly to the async loop.
+### 3. Backend Capabilities Surfaced
+- **AI Audience Segmentation**: Uses Gemini to analyze customer RFM metrics and generate dynamic clusters.
+- **BullMQ + Redis Queues**: Async worker architecture for broadcasting campaigns.
+- **Webhook Ingestion**: Traceable event callbacks (Sent, Delivered, Opened, Clicked, Converted).
+- **Status Precedence & Idempotency**: Strict monotonically increasing event states ensure out-of-order webhook deliveries don't corrupt campaign metrics.
+- **Channel MCP Routing**: Pluggable Model Context Protocol architecture for dispatching messages via WhatsApp, SMS, or RCS (`channelMcpClient.ts`).
 
-## Recent Updates & Bug Fixes
-- **Webhook Precedence:** Added `CONVERTED` to the `STATUS_PRECEDENCE` map and ensured `communication_id` mapping functions correctly.
-- **MCP Client Fallback:** The default MCP SDK (`StreamableHTTPServerTransport`) had issues with duplicate transports. A direct `fetch()` fallback is currently utilized in `channelMcpClient.ts` to guarantee delivery loop stability.
-- **Frontend Simulator:** Built `SystemMonitorPanel` inside `/simulator` to visually track live webhook callbacks trickling into the CRM.
+## Recent Refactoring Notes (June 2026)
+- **Problem**: The UI felt like multiple disjointed assignments (Gamification, Nudge, Settings).
+- **Resolution**: A massive Information Architecture (IA) unification. Merged gamification into campaign generation. Moved nudge into the customer directory. Extracted system observability from analytics into its own Operations simulator. 
+- **Codebase Cleanups**: Removed deprecated unused pages (`/gamification`, `/nudge`, `/settings`, `/ai-usage`). Fixed typing and unclosed div errors inside the UI components.
 
-## Development Patterns
-1. **Security Middleware:** All routes are protected by `security.ts`, providing request ID injection, rate-limiting, SQL injection guards, and strict input payload validation.
-2. **Prisma Schema:** Heavy use of composite indexes and relations for rapid dashboard aggregations.
-
-## Running the Project
-```bash
-# Start all services concurrently (CRM, Frontend, 3x Channel Simulators, Redis)
-npm run start:all
-```
-
-## Next Steps / Tech Debt
-1. **Pagination for Massive Segments:** `POST /api/campaigns/send` currently pulls all `customerIds` into memory. For 100k+ users, this must be refactored to chunk segment IDs or use a cursor.
-2. **Analytics Deduplication:** `attributedOrders` blindly increments upon receiving a `CLICKED` or `CONVERTED` event. This needs a unique constraint to avoid double-counting.
-3. **Event-Driven Channels:** Consider swapping the HTTP fallback in `channelMcpClient` to a pure Kafka/RabbitMQ implementation for 1M+ throughput.
+## How to Continue Work
+1. **Frontend**: Always verify imports using `useTenant()` context for personalization. The UI utilizes Tailwind CSS and Lucide Icons. Ensure the `Sidebar` reflects any new module routing.
+2. **Backend**: Any modifications to AI prompts should be made in `src/routes/aiAgent.ts`. If modifying queues, check `src/workers/campaignWorker.ts`.
+3. **Database**: Remember to run migrations on BOTH schema files if adding models (`npx prisma generate --schema=prisma/schema.prisma` and `npx prisma generate --schema=prisma/schema-tenant.prisma`).
