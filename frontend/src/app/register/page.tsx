@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTenant } from '../../lib/authContext';
-import { Sparkles, ArrowRight, Loader2, Coffee, ShoppingBag, UtensilsCrossed, Shirt, Sparkle, Gem } from 'lucide-react';
+import { Sparkles, ArrowRight, Loader2, Coffee, ShoppingBag, UtensilsCrossed, Shirt, Sparkle, Gem, UploadCloud, FileText } from 'lucide-react';
 import Link from 'next/link';
 
 const CATEGORIES = [
@@ -28,6 +28,48 @@ export default function RegisterPage() {
   
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Step 3 state
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const handleUploadAndFinish = async () => {
+    if (!file) return;
+    setUploading(true);
+    setError('');
+    
+    try {
+      const token = localStorage.getItem('xeno_auth_token');
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/ingest/file`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'File upload failed');
+      }
+      
+      setUploadSuccess(true);
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 1500);
+    } catch (err: any) {
+      setError(err.message || 'File upload failed');
+      setUploading(false);
+    }
+  };
 
   const calculateStrength = (pass: string) => {
     if (pass.length === 0) return 0;
@@ -78,8 +120,9 @@ export default function RegisterPage() {
         localStorage.setItem('xeno_tenant_profile', JSON.stringify(profile));
       }
       
-      // Hard redirect to dashboard so context mounts with the new token
-      window.location.href = '/dashboard';
+      // Transition to Step 3 instead of hard redirect
+      setStep(3);
+      setLoading(false);
     } catch (err: any) {
       setError(err.message || 'Registration failed');
       setLoading(false);
@@ -241,14 +284,76 @@ export default function RegisterPage() {
             </form>
           )}
 
-          <div className="mt-8 text-center">
-            <p className="text-sm text-neutral-400">
-              Already have an account?{' '}
-              <Link href="/login" className="font-semibold text-[#6366F1] hover:text-[#818cf8] transition">
-                Sign in instead
-              </Link>
-            </p>
-          </div>
+          {step === 3 && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-green-500/10 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Sparkles className="w-8 h-8" />
+                </div>
+                <h3 className="text-xl font-bold text-white">Account Created!</h3>
+                <p className="text-sm text-neutral-400 mt-2">
+                  Upload your historical customer data (CSV/JSON) so XENO's AI models can start analyzing your audience immediately.
+                </p>
+              </div>
+
+              <div className="border-2 border-dashed border-neutral-700 rounded-xl p-8 text-center bg-neutral-900/50 hover:bg-neutral-800/50 transition relative group">
+                <input
+                  type="file"
+                  accept=".csv,.json"
+                  onChange={handleFileChange}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+                
+                {!file ? (
+                  <div className="space-y-3 pointer-events-none">
+                    <UploadCloud className="w-10 h-10 text-[#6366F1] mx-auto opacity-80 group-hover:opacity-100 transition" />
+                    <div>
+                      <p className="text-sm font-medium text-white">Click or drag file to upload</p>
+                      <p className="text-xs text-neutral-500 mt-1">Supports .csv and .json</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3 pointer-events-none">
+                    <FileText className="w-10 h-10 text-green-500 mx-auto" />
+                    <div>
+                      <p className="text-sm font-medium text-white">{file.name}</p>
+                      <p className="text-xs text-neutral-500 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => window.location.href = '/dashboard'}
+                  className="w-1/3 flex justify-center items-center py-2.5 px-4 border border-neutral-700 rounded-lg shadow-sm text-sm font-medium text-neutral-300 bg-transparent hover:bg-neutral-800 transition"
+                >
+                  Skip for now
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUploadAndFinish}
+                  disabled={!file || uploading || uploadSuccess}
+                  className="w-2/3 flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-bold text-white bg-[#6366F1] hover:bg-[#4f46e5] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6366F1] focus:ring-offset-[#141414] transition disabled:opacity-50"
+                >
+                  {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : 
+                   uploadSuccess ? "Success!" : "Upload & Finish"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step < 3 && (
+            <div className="mt-8 text-center">
+              <p className="text-sm text-neutral-400">
+                Already have an account?{' '}
+                <Link href="/login" className="font-semibold text-[#6366F1] hover:text-[#818cf8] transition">
+                  Sign in instead
+                </Link>
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>
