@@ -373,10 +373,10 @@ export default function NudgePage(): React.JSX.Element {
       <div className="border-b border-border pb-5">
         <h1 className="text-3xl font-bold tracking-tight text-foreground font-display flex items-center gap-2">
           <Zap className="w-8 h-8 text-neutral-200" />
-          Customer Nudge Engine
+          Customer Directory
         </h1>
         <p className="text-neutral-500 mt-1 text-sm">
-          Run personalized conversational nudges to target pools of customers.
+          Manage your customer base, inspect profiles, and dispatch personalized quick nudges.
         </p>
       </div>
 

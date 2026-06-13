@@ -6,10 +6,10 @@ import {
   HelpCircle, Gamepad2, Settings2, Target, Send, Search, CheckCircle2, RefreshCw, Smartphone, MonitorSmartphone, X, AlertCircle,
   Copy, Check, Landmark, Info, Loader2
 } from 'lucide-react';
-import { trackedAiFetch } from '../../../lib/aiLogger';
-import { useTenant } from '../../../lib/authContext';
-import { Button } from '../../../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
+import { trackedAiFetch } from '../../../../lib/aiLogger';
+import { useTenant } from '../../../../lib/authContext';
+import { Button } from '../../../../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../../components/ui/card';
 import { useRouter } from 'next/navigation';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';

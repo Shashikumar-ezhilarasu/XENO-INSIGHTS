@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Send, BarChart2, Trophy, UserCircle2, Bot, Zap, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Send, BarChart2, Trophy, UserCircle2, Bot, Zap, Settings, LogOut, Activity } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useQueue } from '../../lib/queueContext';
 import { useTenant } from '../../lib/authContext';
@@ -13,17 +13,30 @@ export default function Sidebar() {
   const { isProcessing } = useQueue();
   const { logout } = useTenant();
 
-  const navItems = [
-    { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Campaign Manager', href: '/campaigns', icon: Send },
-    { name: 'AI Orchestrator', href: '/campaigns/command', icon: Bot },
-    { name: 'Nudge Engine', href: '/nudge', icon: Zap },
-    { name: 'Gamification Studio', href: '/gamification', icon: Trophy },
-    { name: 'Analytics Monitor', href: '/analytics', icon: BarChart2 },
-    { name: 'System Monitor', href: '/simulator', icon: Settings },
-    { name: 'AI Usage and Tokens', href: '/ai-usage', icon: Bot, pulse: true },
-    { name: 'Team Members', href: '/team', icon: UserCircle2 },
-    { name: 'Settings', href: '#', icon: Settings },
+  const navGroups = [
+    {
+      title: 'CRM',
+      items: [
+        { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+        { name: 'Customers', href: '/customers', icon: UserCircle2 },
+        { name: 'Campaigns', href: '/campaigns', icon: Send },
+        { name: 'Analytics', href: '/analytics', icon: BarChart2 },
+      ]
+    },
+    {
+      title: 'Operations',
+      items: [
+        { name: 'Campaign Delivery Simulator', href: '/simulator', icon: Activity },
+      ]
+    },
+    {
+      title: 'Workspace',
+      items: [
+        { name: 'Business Profile', href: '/workspace/profile', icon: Trophy },
+        { name: 'Team', href: '/team', icon: UserCircle2 },
+        { name: 'Settings', href: '/settings', icon: Settings, pulse: true },
+      ]
+    }
   ];
 
   return (
@@ -40,38 +53,47 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation list */}
-      <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = pathname === item.href;
-          
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm font-medium transition duration-200 group',
-                isActive
-                  ? 'bg-secondary text-foreground'
-                  : 'text-neutral-500 hover:text-foreground hover:bg-secondary/40'
-              )}
-            >
-              <Icon
-                className={cn(
-                  'w-4 h-4 transition duration-200',
-                  isActive ? 'text-foreground' : 'text-neutral-500 group-hover:text-foreground'
-                )}
-              />
-              <span className="flex-1">{item.name}</span>
-              {item.pulse && isProcessing && (
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-                </span>
-              )}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 px-4 py-6 space-y-6 overflow-y-auto">
+        {navGroups.map((group) => (
+          <div key={group.title}>
+            <h3 className="px-4 text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-2">
+              {group.title}
+            </h3>
+            <div className="space-y-1">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+                
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      'flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm font-medium transition duration-200 group',
+                      isActive
+                        ? 'bg-secondary text-foreground'
+                        : 'text-neutral-500 hover:text-foreground hover:bg-secondary/40'
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        'w-4 h-4 transition duration-200',
+                        isActive ? 'text-foreground' : 'text-neutral-500 group-hover:text-foreground'
+                      )}
+                    />
+                    <span className="flex-1">{item.name}</span>
+                    {item.pulse && isProcessing && (
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* Logout & Footer Info */}

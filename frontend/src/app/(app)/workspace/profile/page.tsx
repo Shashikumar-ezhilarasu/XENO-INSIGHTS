@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useTenant } from '../../../lib/authContext';
-import { Button } from '../../../components/ui/button';
-import { Input } from '../../../components/ui/input';
-import { Card, CardHeader, CardTitle, CardContent } from '../../../components/ui/card';
+import { useTenant } from '../../../../lib/authContext';
+import { Button } from '../../../../components/ui/button';
+import { Input } from '../../../../components/ui/input';
+import { Card, CardHeader, CardTitle, CardContent } from '../../../../components/ui/card';
 import { Loader2, Settings, Building, Save } from 'lucide-react';
 
-export default function SettingsPage() {
+export default function BusinessProfilePage() {
   const { tenant, token } = useTenant();
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
@@ -46,13 +46,13 @@ export default function SettingsPage() {
         body: JSON.stringify(formData)
       });
       if (res.ok) {
-        alert('Settings saved successfully. Please refresh to see changes.');
+        alert('Profile saved successfully. Please refresh to see changes.');
       } else {
-        alert('Failed to save settings.');
+        alert('Failed to save profile.');
       }
     } catch (e) {
       console.error(e);
-      alert('Error saving settings.');
+      alert('Error saving profile.');
     } finally {
       setIsSaving(false);
     }
@@ -63,11 +63,11 @@ export default function SettingsPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Settings className="w-8 h-8 text-neutral-400" />
-            Global Tenant Settings
+            <Building className="w-8 h-8 text-neutral-400" />
+            Business Profile
           </h2>
           <p className="text-sm text-neutral-500 mt-1">
-            Configure your brand identity and data preferences across all applications.
+            Configure your brand identity and data preferences across the platform.
           </p>
         </div>
       </div>
