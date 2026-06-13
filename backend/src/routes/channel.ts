@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -13,12 +14,24 @@ async function sendWebhookWithRetry(url: string, payload: any, attempt: number =
   }));
 
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer webhook_secret_123'
+    };
+
+    const webhookSecret = process.env.WEBHOOK_SECRET || '';
+    if (webhookSecret) {
+      const payloadStr = JSON.stringify(payload);
+      const signature = crypto
+        .createHmac('sha256', webhookSecret)
+        .update(payloadStr)
+        .digest('hex');
+      headers['X-Webhook-Signature'] = signature;
+    }
+
     const res = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer webhook_secret_123'
-      },
+      headers,
       body: JSON.stringify(payload)
     });
     

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../config/prisma';
-
+import crypto from 'crypto';
+// import { webhookProcessingQueue } from '../config/queue';
 import { validateWebhookCallback } from '../middleware/security';
 
 const router = Router();
@@ -22,6 +23,27 @@ const STATUS_PRECEDENCE: Record<string, number> = {
  * Body: { communicationId: string, status: string, errorMsg?: string, timestamp: string }
  */
 router.post(['/receipt', '/channel-callback'], validateWebhookCallback, async (req: Request, res: Response) => {
+  const webhookSecret = process.env.NODE_ENV !== 'test' ? (process.env.WEBHOOK_SECRET || '') : '';
+  if (webhookSecret) {
+    const signature = req.headers['x-webhook-signature'] as string;
+    if (!signature) {
+      return res.status(401).json({ error: 'Unauthorized. Missing webhook signature.' });
+    }
+
+    const payload = JSON.stringify(req.body);
+    const expectedSignature = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(payload)
+      .digest('hex');
+
+    const sigBuffer = Buffer.from(signature, 'utf8');
+    const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
+
+    if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
+      return res.status(401).json({ error: 'Unauthorized. Invalid signature.' });
+    }
+  }
+
   const { communicationId, status, errorMsg, orderValue } = req.body;
 
   if (!communicationId || !status) {
@@ -33,17 +55,29 @@ router.post(['/receipt', '/channel-callback'], validateWebhookCallback, async (r
     return res.status(400).json({ error: `Invalid status: ${status}` });
   }
 
+  // FUTURE ENHANCEMENT: Queue-based webhook processing
+  // When queue infrastructure is re-enabled, replace the direct
+  // processing below with:
+  //
+  // try {
+  //   const job = await webhookProcessingQueue.add(`webhook-${communicationId}-${upperStatus}`, {
+  //     communicationId,
+  //     status: upperStatus,
+  //     errorMsg,
+  //     orderValue
+  //   });
+  //   return res.status(202).json({
+  //     success: true,
+  //     message: 'Callback enqueued for asynchronous processing.',
+  //     jobId: job.id
+  //   });
+  // } catch (enqueueErr: any) {
+  //   console.error('[Webhook Server] Failed to enqueue webhook job:', enqueueErr.message);
+  //   return res.status(500).json({ error: 'Failed to enqueue webhook update.' });
+  // }
+
   try {
-    /**
-     * DESIGN CHOICE (Prisma Transaction with Concurrency Locking):
-     * To prevent data corruption under high concurrent webhook callbacks (e.g., if a 'DELIVERED' status update
-     * and 'OPENED' status update arrive nearly simultaneously, or out-of-order), we wrap the operations
-     * in a Prisma interactive transaction.
-     * We retrieve the current state and perform a precedence validation check. This ensures that a delayed
-     * callback (e.g., 'DELIVERED') does not overwrite a more advanced state (e.g., 'OPENED').
-     */
     const result = await prisma.$transaction(async (tx) => {
-      // Fetch the existing record
       const existing = await tx.communication.findUnique({
         where: { id: communicationId }
       });
@@ -55,8 +89,6 @@ router.post(['/receipt', '/channel-callback'], validateWebhookCallback, async (r
       const currentPrecedence = STATUS_PRECEDENCE[existing.status] ?? 0;
       const newPrecedence = STATUS_PRECEDENCE[upperStatus];
 
-      // If the incoming status represents an advanced step in the communication lifecycle, update it.
-      // E.g., moving from 'PENDING' -> 'DELIVERED' or 'DELIVERED' -> 'OPENED'.
       if (newPrecedence > currentPrecedence) {
         const updated = await tx.communication.update({
           where: { id: communicationId },
@@ -66,7 +98,6 @@ router.post(['/receipt', '/channel-callback'], validateWebhookCallback, async (r
           }
         });
 
-        // REVENUE TRACKING: When a link is clicked, simulate a conversion
         if (upperStatus === 'CLICKED') {
           const customer = await tx.customer.findUnique({
             where: { id: existing.customerId },
@@ -74,10 +105,8 @@ router.post(['/receipt', '/channel-callback'], validateWebhookCallback, async (r
           });
 
           if (customer) {
-            // Use provided orderValue or generate a realistic random value between 400-4000
             const finalOrderValue = orderValue ? parseFloat(orderValue) : Math.floor(Math.random() * (4000 - 400 + 1) + 400);
 
-            // Increment the campaign's explicit attribution metrics
             await tx.campaign.update({
               where: { id: existing.campaignId },
               data: {
@@ -93,7 +122,6 @@ router.post(['/receipt', '/channel-callback'], validateWebhookCallback, async (r
         return { updated: true, record: updated };
       }
 
-      // If status is out of order (e.g. DELIVERED arrives after OPENED), we skip the update but return success.
       return { 
         updated: false, 
         message: `Status update ignored. Current: ${existing.status}, Received: ${upperStatus}`,
