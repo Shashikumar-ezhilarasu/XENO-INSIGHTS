@@ -2,6 +2,7 @@ import React from 'react';
 import Sidebar from '../../components/shared/sidebar';
 import Navigation from '../../components/shared/navigation';
 import AuthGuard from '../../components/AuthGuard';
+import { QueueProvider } from '../../lib/queueContext';
 
 export default function AppLayout({
   children,
@@ -10,21 +11,23 @@ export default function AppLayout({
 }) {
   return (
     <AuthGuard>
-      <div className="flex min-h-screen">
-        {/* Persistent Sidebar */}
-        <Sidebar />
-        
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
-          {/* Top Navigation */}
-          <Navigation />
+      <QueueProvider>
+        <div className="flex min-h-screen">
+          {/* Persistent Sidebar */}
+          <Sidebar />
           
-          {/* Page Content */}
-          <main className="flex-1 p-8 bg-background">
-            {children}
-          </main>
+          {/* Main Content Area */}
+          <div className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
+            {/* Top Navigation */}
+            <Navigation />
+            
+            {/* Page Content */}
+            <main className="flex-1 p-8 bg-background">
+              {children}
+            </main>
+          </div>
         </div>
-      </div>
+      </QueueProvider>
     </AuthGuard>
   );
 }
