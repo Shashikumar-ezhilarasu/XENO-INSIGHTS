@@ -4,6 +4,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSharedState } from '../../../hooks/useSharedState';
 import { useLivePolling } from '../../../hooks/useLivePolling';
+import { useTenant } from '../../../lib/authContext';
+import { CATEGORY_DEFAULTS } from '../../../lib/categoryDefaults';
 import CampaignList from '../../../components/CampaignList';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Badge } from '../../../components/ui/badge';
@@ -13,7 +15,7 @@ import {
   Users, Send, CheckCircle2, Eye, Loader2, Sparkles, 
   AlertTriangle, Moon, Award, Calendar, ShoppingBag, 
   ArrowRight, User, X, Landmark, TrendingUp, Search, Bot,
-  Clock
+  Clock, Upload
 } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 
@@ -983,13 +985,17 @@ export default function OverviewPage() {
   const [isOnboardingLoading, setIsOnboardingLoading] = useState(true);
   const [onboardingStep, setOnboardingStep] = useState(1);
   const [businessName, setBusinessName] = useState('');
-  const [businessIndustry, setBusinessIndustry] = useState('Coffee & Retail');
+  const [businessIndustry, setBusinessIndustry] = useState('');
+
+  const { tenant } = useTenant();
+  const prefs = tenant?.preferences;
+  const brandCategory = tenant?.brandCategory || 'retail';
   const [mainProduct, setMainProduct] = useState('');
   const [dbUri, setDbUri] = useState('postgresql://localhost:5432/xeno_crm');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionStatusText, setConnectionStatusText] = useState('');
-  const [brandCategory, setBrandCategoryState] = useState<string>('retail');
+  const [brandCategoryState, setBrandCategoryState] = useState<string>(brandCategory);
 
   // Dynamic Hooks for Presentation Simulation
   const dynamicCustomers = useMemo(() => getDynamicCustomers(businessIndustry), [businessIndustry]);
@@ -1022,53 +1028,30 @@ export default function OverviewPage() {
   useEffect(() => {
     async function loadRfm() {
       if (!isOnboarded) return;
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/customers/rfm`);
-        if (res.ok) {
-          const data = await res.json();
-          setRfmData({
-            champions: data.champions,
-            atRisk: data.atRisk,
-            hibernating: data.hibernating
-          });
-        } else {
-          setRfmData({ champions: { count: 0, customers: [] }, atRisk: { count: 0, customers: [] }, hibernating: { count: 0, customers: [] } });
-        }
-      } catch (e) {
-        console.warn('Error fetching RFM data:', e);
-        setRfmData({ champions: { count: 0, customers: [] }, atRisk: { count: 0, customers: [] }, hibernating: { count: 0, customers: [] } });
-      } finally {
-        setRfmLoading(false);
-      }
+      if (!isOnboarded) return;
+      // Simulation mode for category-specific data per user request
+      setRfmData({
+        champions: dynamicRFM.champions,
+        atRisk: dynamicRFM.atRisk,
+        hibernating: dynamicRFM.hibernating
+      });
+      setRfmLoading(false);
     }
     loadRfm();
-  }, [isOnboarded]);
+  }, [isOnboarded, dynamicRFM]);
 
   // Fetch customer lists for 360-degree view with search support
   useEffect(() => {
     let active = true;
     async function fetchCustomers() {
       if (!isOnboarded) return;
-      setCustomersLoading(true);
-      try {
-        const url = searchQuery 
-          ? `${BACKEND_URL}/api/customers?limit=6&search=${encodeURIComponent(searchQuery)}`
-          : `${BACKEND_URL}/api/customers?limit=6`;
-        const res = await fetch(url);
-        if (res.ok && active) {
-          const json = await res.json();
-          setCustomers(json.data || []);
-        } else if (active) {
-          setCustomers([]);
-        }
-      } catch (e) {
-        console.warn('Error fetching customers:', e);
-        if (active) {
-          setCustomers([]);
-        }
-      } finally {
-        if (active) setCustomersLoading(false);
+      // Simulation mode for category-specific data
+      if (searchQuery) {
+        setCustomers(dynamicCustomers.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase())));
+      } else {
+        setCustomers(dynamicCustomers);
       }
+      setCustomersLoading(false);
     }
 
     const delayDebounceFn = setTimeout(() => {
@@ -1085,30 +1068,27 @@ export default function OverviewPage() {
   useEffect(() => {
     async function loadDashboardStats() {
       if (!isOnboarded) return;
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/analytics/dashboard`);
-        if (res.ok) {
-          const data = await res.json();
-          setDashboardStats(data);
-        } else {
-          setDashboardStats({
-            totalCustomers: 0, totalOrders: 0, netSales: 0, repeatRate: 0,
-            recencyDistribution: { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 },
-            funnel: { sent: 0, delivered: 0, opened: 0, clicked: 0, failed: 0, deliveredPercent: 0, openedPercent: 0, failedPercent: 0 },
-            orderFrequencySeries: [0, 0, 0, 0, 0, 0, 0]
-          });
-        }
-      } catch (err) {
-        console.warn('Failed to load dashboard statistics:', err);
-        setDashboardStats({
-          totalCustomers: 0, totalOrders: 0, netSales: 0, repeatRate: 0,
-          recencyDistribution: { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 },
-          funnel: { sent: 0, delivered: 0, opened: 0, clicked: 0, failed: 0, deliveredPercent: 0, openedPercent: 0, failedPercent: 0 },
-          orderFrequencySeries: [0, 0, 0, 0, 0, 0, 0]
-        });
-      } finally {
-        setDashboardLoading(false);
-      }
+      if (!isOnboarded) return;
+      // Simulation mode for category-specific stats
+      const isCoffee = brandCategoryState === 'coffee_cafe' || businessIndustry === 'Coffee & Cafe';
+      const isJewelry = brandCategoryState === 'jewelry_accessories';
+      const isBeauty = brandCategoryState === 'beauty_cosmetics';
+
+      setDashboardStats({
+        totalCustomers: isCoffee ? 4500 : isJewelry ? 850 : isBeauty ? 3200 : 2600,
+        totalOrders: isCoffee ? 26600 : isJewelry ? 1200 : isBeauty ? 5400 : 8500,
+        netSales: isCoffee ? 1200000 : isJewelry ? 2800000 : isBeauty ? 850000 : 1800000,
+        repeatRate: isCoffee ? 68.5 : isJewelry ? 18.2 : isBeauty ? 42.1 : 45.2,
+        recencyDistribution: { 
+          '0-30': isCoffee ? 2100 : 200, 
+          '31-60': isCoffee ? 800 : 150, 
+          '61-90': isCoffee ? 400 : 100, 
+          '90+': isCoffee ? 1200 : 400 
+        },
+        funnel: { sent: 10000, delivered: 9800, opened: 5400, clicked: 1200, failed: 200, deliveredPercent: 98, openedPercent: 54, failedPercent: 2 },
+        orderFrequencySeries: isCoffee ? [200, 250, 220, 280, 400, 450, 200] : [10, 15, 12, 18, 25, 30, 15]
+      });
+      setDashboardLoading(false);
     }
     loadDashboardStats();
   }, [isOnboarded]);
@@ -1182,83 +1162,59 @@ export default function OverviewPage() {
 
           {onboardingStep === 1 ? (
             <div className="space-y-5">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-purple-600">Step 1: Business Profile</h3>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-purple-600">Step 1: Business Profile & Datasource</h3>
               
-              <div className="space-y-1.5">
-                <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider block">Business Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Blue Tokai Coffee"
-                  value={businessName}
-                  onChange={(e) => setBusinessName(e.target.value)}
-                  className="w-full bg-secondary/35 border border-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-purple-500"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider block">Business Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Blue Tokai Coffee"
+                    value={businessName}
+                    onChange={(e) => setBusinessName(e.target.value)}
+                    className="w-full bg-secondary/35 border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider block">Business Industry</label>
+                  <select
+                    value={businessIndustry}
+                    onChange={(e) => setBusinessIndustry(e.target.value)}
+                    className="w-full bg-secondary/35 border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="Coffee & Retail">Coffee & Cafe Retail</option>
+                    <option value="Food & Beverages">Food & Beverages</option>
+                    <option value="Fashion & Apparel">Fashion & Apparel</option>
+                    <option value="Beauty & Cosmetics">Beauty & Cosmetics</option>
+                    <option value="Accessories">Jewelry & Accessories</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/10 text-[11px] text-purple-900 dark:text-purple-300 font-medium leading-relaxed">
+                ℹ️ Connect your database or upload a CSV/JSON file to compile customer aggregates.
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider block">Business Industry</label>
-                <select
-                  value={businessIndustry}
-                  onChange={(e) => setBusinessIndustry(e.target.value)}
-                  className="w-full bg-secondary/35 border border-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-purple-500"
-                >
-                  <option value="Coffee & Retail">Coffee & Cafe Retail</option>
-                  <option value="Food & Beverages">Food & Beverages</option>
-                  <option value="Fashion & Apparel">Fashion & Apparel</option>
-                  <option value="Beauty & Cosmetics">Beauty & Cosmetics</option>
-                  <option value="Accessories">Jewelry & Accessories</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider block">Main Product / Offerings</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Specialty coffee beans, artisanal pastries"
-                  value={mainProduct}
-                  onChange={(e) => setMainProduct(e.target.value)}
-                  className="w-full bg-secondary/35 border border-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-purple-500"
-                />
-              </div>
-
-              <div className="flex justify-end pt-4">
-                <Button 
-                  onClick={() => setOnboardingStep(2)}
-                  disabled={!businessName.trim() || !mainProduct.trim()}
-                  className="space-x-1.5 text-xs font-bold"
-                >
-                  <span>Continue to Datasource</span>
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          ) : onboardingStep === 2 ? (
-            <div className="space-y-5">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-purple-600">Step 2: Connect Datasource</h3>
-              
-              <div className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/10 text-xs text-purple-900 dark:text-purple-300 font-medium leading-relaxed">
-                ℹ️ Connecting your business profile allows XENO CRM to directly compile customer aggregates, lifetime spend records, and transaction frequencies from your database tables. You can also upload a CSV or JSON file to batch import historical data.
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider block">Database Connection URI</label>
+                <label className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider block">Database Connection URI</label>
                 <input
                   type="text"
                   value={dbUri}
                   onChange={(e) => setDbUri(e.target.value)}
-                  className="w-full bg-secondary/35 border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-mono focus:outline-none focus:border-purple-500"
+                  className="w-full bg-secondary/35 border border-border rounded-xl px-3 py-2 text-xs text-foreground font-mono focus:outline-none focus:border-purple-500"
                   disabled={isConnecting || selectedFile !== null}
                 />
               </div>
 
-              <div className="flex items-center gap-4 my-2">
+              <div className="flex items-center gap-4 my-1">
                 <div className="h-px bg-border flex-1"></div>
-                <span className="text-xs text-neutral-500 font-bold uppercase tracking-wider">OR</span>
+                <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider">OR</span>
                 <div className="h-px bg-border flex-1"></div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider block">Upload Data File (CSV / JSON / EXCEL)</label>
+                <label className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider block">Upload Data File (CSV / JSON / EXCEL)</label>
                 <input
                   type="file"
                   accept=".csv, .json, application/json, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
@@ -1266,30 +1222,25 @@ export default function OverviewPage() {
                     const file = e.target.files?.[0] || null;
                     setSelectedFile(file);
                   }}
-                  className="w-full bg-secondary/35 border border-border rounded-xl px-4 py-2 text-xs text-foreground focus:outline-none focus:border-purple-500 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 dark:file:bg-purple-900/30 dark:file:text-purple-300"
+                  className="w-full bg-secondary/35 border border-border rounded-xl px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-purple-500 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
                   disabled={isConnecting}
                 />
               </div>
 
               {isConnecting && (
-                <div className="flex items-center gap-3 p-3 bg-secondary/30 border border-border rounded-xl text-xs text-neutral-400 font-medium mt-4">
+                <div className="flex items-center gap-3 p-3 bg-secondary/30 border border-border rounded-xl text-xs text-neutral-400 font-medium mt-2">
                   <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
                   <span>{connectionStatusText}</span>
                 </div>
               )}
 
-              <div className="flex justify-between items-center pt-4 mt-2">
-                <Button 
-                  variant="secondary"
-                  onClick={() => setOnboardingStep(1)}
-                  disabled={isConnecting}
-                  className="text-xs font-semibold"
-                >
-                  Back
-                </Button>
-                
+              <div className="flex justify-end pt-2">
                 <Button 
                   onClick={async () => {
+                    if (!businessName.trim()) {
+                      alert('Please enter a business name first.');
+                      return;
+                    }
                     setIsConnecting(true);
                     
                     if (selectedFile) {
@@ -1349,19 +1300,19 @@ export default function OverviewPage() {
                     setConnectionStatusText('Database Connection Success!');
                     await new Promise(r => setTimeout(r, 400));
                     setIsConnecting(false);
-                    setOnboardingStep(3);
+                    setOnboardingStep(2);
                   }}
-                  disabled={isConnecting}
+                  disabled={isConnecting || !businessName.trim()}
                   className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs"
                 >
-                  Connect & Sync Database
+                  Connect & Sync
                 </Button>
               </div>
             </div>
           ) : (
             <div className="space-y-5">
               <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
-              <h3 className="text-sm font-bold uppercase tracking-wider text-purple-600">Step 3: What kind of brand are you?</h3>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-purple-600">Step 2: What kind of brand are you?</h3>
               <p className="text-xs text-neutral-500 font-medium">Select your brand category to personalize your AI copywriter's voice and campaign templates.</p>
               
               <div className="grid grid-cols-2 gap-3 pt-2">
@@ -1373,7 +1324,7 @@ export default function OverviewPage() {
                   { key: 'beauty_cosmetics', label: 'Beauty & Cosmetics', iconClass: 'ti-sparkles' },
                   { key: 'jewelry_accessories', label: 'Jewelry & Accessories', iconClass: 'ti-diamond' }
                 ].map(cat => {
-                  const isSelected = brandCategory === cat.key;
+                  const isSelected = brandCategoryState === cat.key;
                   return (
                     <div
                       key={cat.key}
@@ -1394,7 +1345,7 @@ export default function OverviewPage() {
               <div className="flex justify-between items-center pt-4 mt-2">
                 <Button 
                   variant="secondary"
-                  onClick={() => setOnboardingStep(2)}
+                  onClick={() => setOnboardingStep(1)}
                   className="text-xs font-semibold"
                 >
                   Back
@@ -1402,7 +1353,7 @@ export default function OverviewPage() {
                 
                 <Button 
                   onClick={() => {
-                    localStorage.setItem('xeno_brand_category', brandCategory);
+                    localStorage.setItem('xeno_brand_category', brandCategoryState);
                     localStorage.setItem('xeno_onboarded', 'true');
                     localStorage.setItem('xeno_business_name', businessName);
                     localStorage.setItem('xeno_business_industry', businessIndustry);
@@ -1432,14 +1383,54 @@ export default function OverviewPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-6">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground to-neutral-500 bg-clip-text text-transparent font-sans flex items-center gap-2">
-            <span>{businessName || 'Blue Tokai Coffee'} {t('dashboard_overview')}</span>
+            <span>{tenant?.brandName || businessName || 'Brand'} {t('dashboard_overview')}</span>
             <Badge className="bg-purple-600/10 text-purple-600 dark:text-purple-400 border-none font-semibold text-[10px] py-1 px-2.5 rounded-full select-none">
-              {businessIndustry || 'Coffee & Retail'}
+              {tenant?.brandCategory || businessIndustry || 'Retail'}
             </Badge>
           </h1>
           <p className="text-sm text-neutral-500 max-w-xl font-medium">
-            {t('welcome_back')}
+            Welcome back, {tenant?.brandName || 'Admin'}! {CATEGORY_DEFAULTS[brandCategory]?.overviewWelcome || t('welcome_back')}
           </p>
+        </div>
+        
+        {/* Upload Button */}
+        <div className="flex items-center gap-3 shrink-0">
+          {isConnecting && (
+            <div className="flex items-center gap-2 text-xs font-bold text-purple-600 animate-pulse bg-purple-500/10 px-3 py-1.5 rounded-lg border border-purple-500/20">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              {connectionStatusText}
+            </div>
+          )}
+          <label className={`cursor-pointer bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 shadow-sm transition-colors ${isConnecting ? 'opacity-50 pointer-events-none' : ''}`}>
+            <Upload className="w-4 h-4" />
+            Upload Data Source
+            <input 
+              type="file" 
+              className="hidden" 
+              accept=".csv, .json, application/json, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+              disabled={isConnecting}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setIsConnecting(true);
+                setConnectionStatusText('Processing data file...');
+                
+                try {
+                  await new Promise(r => setTimeout(r, 1200));
+                  setConnectionStatusText('Extracting KPIs...');
+                  await new Promise(r => setTimeout(r, 1000));
+                  setConnectionStatusText('Syncing to Dashboard...');
+                  await new Promise(r => setTimeout(r, 1000));
+                  alert(`Successfully processed ${file.name}. \nMock data has been mapped to your active brand category (${tenant?.brandCategory || 'Retail'}).`);
+                } catch (err: any) {
+                  alert('Failed to upload file: ' + err.message);
+                } finally {
+                  setIsConnecting(false);
+                  setConnectionStatusText('');
+                }
+              }}
+            />
+          </label>
         </div>
       </div>
 
@@ -1470,7 +1461,7 @@ export default function OverviewPage() {
           >
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                {t('total_orders')}
+                {prefs?.kpiPrimaryLabel || t('total_orders')}
               </CardTitle>
               <ShoppingBag className="w-4 h-4 text-purple-500" />
             </CardHeader>
@@ -1516,7 +1507,7 @@ export default function OverviewPage() {
           >
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                {t('net_sales')}
+                {prefs?.kpiRevenueLabel || t('net_sales')}
               </CardTitle>
               <Landmark className="w-4 h-4 text-green-500" />
             </CardHeader>
@@ -1582,59 +1573,26 @@ export default function OverviewPage() {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                <div 
-                  className="p-3 bg-background/50 border border-border rounded-xl space-y-1.5 hover:border-purple-500/25 transition cursor-help hover:shadow-xs"
-                  onMouseEnter={(e) => handleMouseEnter(e, 'retention_winback')}
-                  onMouseLeave={handleMouseLeave}
-                >
-                  <span className="text-[9px] font-bold text-purple-500 uppercase">{t('retention_winback')}</span>
-                  <p className="text-xs font-semibold text-foreground leading-snug">
-                    {t('target_at_risk')}
-                  </p>
-                  <p className="text-[10px] text-neutral-500 leading-normal font-medium">
-                    {dashboardStats?.aiInsights?.[1] ? (
-                      <span dangerouslySetInnerHTML={{__html: dashboardStats.aiInsights[1].replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}} />
-                    ) : (
-                      `Found **${dashboardStats?.recencyDistribution?.['90+'] || 20} ${t('shoppers')}** who haven't checked out in 90+ days. Click **At Risk** below to target them.`
-                    )}
-                  </p>
-                </div>
-
-                <div 
-                  className="p-3 bg-background/50 border border-border rounded-xl space-y-1.5 hover:border-purple-500/25 transition cursor-help hover:shadow-xs"
-                  onMouseEnter={(e) => handleMouseEnter(e, 'loyalty_booster')}
-                  onMouseLeave={handleMouseLeave}
-                >
-                  <span className="text-[9px] font-bold text-blue-500 uppercase">{t('loyalty_booster')}</span>
-                  <p className="text-xs font-semibold text-foreground leading-snug">
-                    {t('incentivize_vip')}
-                  </p>
-                  <p className="text-[10px] text-neutral-500 leading-normal font-medium">
-                    {dashboardStats?.aiInsights?.[2] ? (
-                      <span dangerouslySetInnerHTML={{__html: dashboardStats.aiInsights[2].replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}} />
-                    ) : (
-                      `Found **${dashboardStats?.totalCustomers ? Math.round(dashboardStats.totalCustomers * 0.15) : 15} premium VIPs** with spends exceeding $500. Offer them 3x loyalty rewards.`
-                    )}
-                  </p>
-                </div>
-
-                <div 
-                  className="p-3 bg-background/50 border border-border rounded-xl space-y-1.5 hover:border-purple-500/25 transition cursor-help hover:shadow-xs"
-                  onMouseEnter={(e) => handleMouseEnter(e, 'product_expansion')}
-                  onMouseLeave={handleMouseLeave}
-                >
-                  <span className="text-[9px] font-bold text-green-500 uppercase">{t('product_expansion')}</span>
-                  <p className="text-xs font-semibold text-foreground leading-snug">
-                    {t('cross_sell')} **{mainProduct || 'Bakery'}**
-                  </p>
-                  <p className="text-[10px] text-neutral-500 leading-normal font-medium">
-                    {dashboardStats?.aiInsights?.[0] ? (
-                      <span dangerouslySetInnerHTML={{__html: dashboardStats.aiInsights[0].replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}} />
-                    ) : (
-                      `Your customer repeat rate is **${dashboardStats?.repeatRate?.toFixed(1) || '42.5'}%**. Send automated promotions targeting weekend checkouts.`
-                    )}
-                  </p>
-                </div>
+                {CATEGORY_DEFAULTS[brandCategory]?.aiRecommendations?.map((rec: any, idx: number) => (
+                  <div 
+                    key={idx}
+                    className="p-3 bg-background/50 border border-border rounded-xl space-y-1.5 hover:border-purple-500/25 transition cursor-help hover:shadow-xs"
+                  >
+                    <span className="text-[9px] font-bold text-purple-500 uppercase">{rec.title}</span>
+                    <p className="text-xs font-semibold text-foreground leading-snug">
+                      {rec.subtitle}
+                    </p>
+                    <p className="text-[10px] text-neutral-500 leading-normal font-medium">
+                      {rec.body
+                        .replace('{atRisk}', dashboardStats?.recencyDistribution?.['90+'] || '20')
+                        .replace('{nearGold}', '15')
+                        .replace('{champions}', dashboardStats?.recencyDistribution?.['0-30'] || '50')
+                        .replace('{hibernating}', dashboardStats?.recencyDistribution?.['61-90'] || '30')
+                        .replace('{total}', dashboardStats?.totalCustomers?.toString() || '100')
+                        .replace('{repeatRate}', dashboardStats?.repeatRate?.toFixed(1) || '42.5')}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -1699,7 +1657,7 @@ export default function OverviewPage() {
               onMouseLeave={handleMouseLeave}
             >
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-semibold text-green-600 dark:text-green-400">{t('champions')}</CardTitle>
+                <CardTitle className="text-sm font-semibold text-green-600 dark:text-green-400">{CATEGORY_DEFAULTS[brandCategory]?.rfmChampionLabel || t('champions')}</CardTitle>
                 <Sparkles className="w-4 h-4 text-green-500" />
               </CardHeader>
               <CardContent>
@@ -1716,7 +1674,7 @@ export default function OverviewPage() {
               onMouseLeave={handleMouseLeave}
             >
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-semibold text-amber-600 dark:text-amber-400">{t('at_risk')}</CardTitle>
+                <CardTitle className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">{CATEGORY_DEFAULTS[brandCategory]?.rfmAtRiskLabel || t('at_risk')}</CardTitle>
                 <AlertTriangle className="w-4 h-4 text-amber-500" />
               </CardHeader>
               <CardContent>
