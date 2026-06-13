@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Trophy, Sparkles, Share2, Users, Award, 
   HelpCircle, Gamepad2, Settings2, Target, Send, Search, CheckCircle2, RefreshCw, Smartphone, MonitorSmartphone, X, AlertCircle,
-  Copy, Check, Landmark, Info
+  Copy, Check, Landmark, Info, Loader2
 } from 'lucide-react';
 import { trackedAiFetch } from '../../../lib/aiLogger';
 import { useTenant } from '../../../lib/authContext';
@@ -562,11 +562,11 @@ export default function GamificationPage() {
                   </button>
 
                   <button 
-                    onClick={() => { setHookStrategy('REFERRAL'); setReferralSuccessMsg(null); }}
+                    onClick={() => { setHookStrategy('REFERRAL_NODE'); setReferralSuccessMsg(null); }}
                     className={`py-2 px-1 text-center font-bold text-[10px] rounded-lg border transition ${
-                      hookStrategy === 'REFERRAL' 
+                      hookStrategy === 'REFERRAL_NODE' 
                         ? 'bg-purple-600/10 text-purple-600 border-purple-500' 
-                        : 'bg-secondary border-border text-neutral-400 hover:text-foreground'
+                        : 'bg-secondary/10 border-border text-neutral-400 hover:text-foreground'
                     }`}
                   >
                     🔗 Referral Node
@@ -636,7 +636,7 @@ export default function GamificationPage() {
                 </div>
               )}
 
-              {hookStrategy === 'REFERRAL' && (
+              {hookStrategy === 'REFERRAL_NODE' && (
                 <div className="p-4 bg-secondary/20 border border-border rounded-xl space-y-3 animate-slideDown">
                   <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider block">Configure Friend Referral Network</span>
                   
@@ -919,7 +919,7 @@ export default function GamificationPage() {
                 )}
 
                 {/* 4. Referral Tree Game */}
-                {hookStrategy === 'REFERRAL' && (
+                {hookStrategy === 'REFERRAL_NODE' && (
                   <div className="flex flex-col items-center space-y-4 w-full text-center">
                     
                     {/* Share Invitation card */}
