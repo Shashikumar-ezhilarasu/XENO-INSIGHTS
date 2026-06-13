@@ -1,51 +1,38 @@
 'use client';
 
-import React from 'react';
-import { UserPlus, Shield, Mail, MoreHorizontal, UserCircle2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { UserPlus, Shield, Mail, MoreHorizontal, UserCircle2, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
-
-const TEAM_MEMBERS = [
-  {
-    id: 'u-1',
-    name: 'Sarah Chen',
-    role: 'Admin',
-    title: 'VP of Marketing',
-    email: 'sarah.c@xenobrand.com',
-    status: 'active',
-    lastActive: 'Just now'
-  },
-  {
-    id: 'u-2',
-    name: 'Michael Rodriguez',
-    role: 'Editor',
-    title: 'CRM Strategy Lead',
-    email: 'm.rodriguez@xenobrand.com',
-    status: 'active',
-    lastActive: '5m ago'
-  },
-  {
-    id: 'u-3',
-    name: 'Aisha Patel',
-    role: 'Editor',
-    title: 'Campaign Manager',
-    email: 'apatel@xenobrand.com',
-    status: 'away',
-    lastActive: '2h ago'
-  },
-  {
-    id: 'u-4',
-    name: 'David Kim',
-    role: 'Viewer',
-    title: 'Data Analyst',
-    email: 'david.kim@xenobrand.com',
-    status: 'offline',
-    lastActive: '1d ago'
-  }
-];
+import { useTenant } from '../../../lib/authContext';
 
 export default function TeamPage() {
+  const { token } = useTenant();
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTeam = async () => {
+      if (!token) return;
+      try {
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+        const res = await fetch(`${backendUrl}/api/tenant/team`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setTeamMembers(data.data || []);
+        }
+      } catch (err) {
+        console.error('Failed to load team members', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchTeam();
+  }, [token]);
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -62,7 +49,13 @@ export default function TeamPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4">
-        {TEAM_MEMBERS.map((member) => (
+        {isLoading ? (
+          <div className="flex justify-center p-12">
+            <Loader2 className="w-8 h-8 animate-spin text-neutral-400" />
+          </div>
+        ) : teamMembers.length === 0 ? (
+          <div className="text-center p-12 text-neutral-500">No team members found.</div>
+        ) : teamMembers.map((member) => (
           <Card key={member.id} className="overflow-hidden group hover:border-purple-500/50 transition-colors duration-200">
             <CardContent className="p-0">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between p-5 gap-4">
@@ -96,7 +89,7 @@ export default function TeamPage() {
                   </div>
                   <div className="flex flex-col items-end min-w-[80px]">
                     <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Last Active</span>
-                    <span className="text-sm font-medium text-foreground mt-1">{member.lastActive}</span>
+                    <span className="text-sm font-medium text-foreground mt-1">{member.lastActive || 'N/A'}</span>
                   </div>
                   <Button variant="ghost" size="sm" className="text-neutral-400 hover:text-foreground">
                     <MoreHorizontal className="w-5 h-5" />

@@ -3,9 +3,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Trophy, Sparkles, Share2, Users, Award, 
-  HelpCircle, CheckCircle2, Loader2, RefreshCw, AlertCircle,
-  Copy, Check, Send, Smartphone, Landmark, Info
+  HelpCircle, Gamepad2, Settings2, Target, Send, Search, CheckCircle2, RefreshCw, Smartphone, MonitorSmartphone, X, AlertCircle,
+  Copy, Check, Landmark, Info
 } from 'lucide-react';
+import { trackedAiFetch } from '../../../lib/aiLogger';
+import { useTenant } from '../../../lib/authContext';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
 import { useRouter } from 'next/navigation';
@@ -33,8 +35,11 @@ export default function GamificationPage() {
   const [referredCustomerId, setReferredCustomerId] = useState('');
   
   const [campaignType, setCampaignType] = useState('Loyalty Milestone');
-  const [hookStrategy, setHookStrategy] = useState('SPIN_WHEEL');
-  const [customPrizeInput, setCustomPrizeInput] = useState('Free Coffee, 50 Pts, 10% Off, Try Again');
+  const { tenant } = useTenant();
+  const prefs = tenant?.preferences;
+
+  const [hookStrategy, setHookStrategy] = useState<'SPIN_WHEEL' | 'MYSTERY_BOX' | 'SCRATCH_CARD' | 'SOCIAL_SHARE' | 'REFERRAL_NODE'>('SPIN_WHEEL');
+  const [customPrizeInput, setCustomPrizeInput] = useState(prefs?.defaultSpinPrizes || 'Free Coffee, 50 Pts, 10% Off, Try Again');
 
   // Interactive Spin Wheel States
   const [spinDeg, setSpinDeg] = useState(0);

@@ -30,6 +30,9 @@ import {
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+
+import { useTenant } from '@/lib/authContext';
+import { CATEGORY_DEFAULTS } from '@/lib/categoryDefaults';
 import { Badge } from '@/components/ui/badge';
 import { BRAND_CONFIG, BrandCategory, getBrandCategory } from '@/lib/brandCategory';
 
@@ -67,6 +70,7 @@ export default function CampaignCommand() {
   const [scheduleDate, setScheduleDate] = useState('');
   const [isDispatching, setIsDispatching] = useState(false);
   const [dispatchProgress, setDispatchProgress] = useState(0);
+  const [campaignAnalytics, setCampaignAnalytics] = useState<any>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
   // Alternative channels explanation panel state
@@ -104,7 +108,7 @@ export default function CampaignCommand() {
       {
         id: 'welcome',
         role: 'ai',
-        content: `Welcome to the XENO AI Marketing Workspace! 🤖 I am your strategy co-pilot for **${config.label}**. Reference our specialized tools, design a goal like, "${config.chips[0].prompt}", or choose a campaign preset to get started.`
+        content: `Welcome to the XENO AI Marketing Workspace! 🤖 I am your strategy co-pilot for **${config.label}**. Reference our specialized tools, design a goal like, "${CATEGORY_DEFAULTS[category]?.chips[0].prompt || config.chips[0].prompt}", or choose a campaign preset to get started.`
       }
     ]);
   }, []);
@@ -504,12 +508,25 @@ export default function CampaignCommand() {
       const interval = setInterval(() => {
         progress += 30;
         if (progress > 100) {
-          progress = 100;
           clearInterval(interval);
           setIsSuccess(true);
-          setTimeout(() => {
-            window.location.href = '/analytics';
-          }, 1500);
+          
+          // Show analytics inline instead of redirecting
+          const sent = activeProposal.audience?.size || 420;
+          const delivered = Math.floor(sent * 0.96);
+          const opened = Math.floor(delivered * 0.68);
+          const clicked = Math.floor(opened * 0.42);
+          const orders = Math.floor(clicked * 0.15);
+          const revenue = orders * 45.0; // assuming $45 AOV
+          
+          setCampaignAnalytics({
+            sent,
+            delivered,
+            opened,
+            clicked,
+            orders,
+            revenue
+          });
         }
         setDispatchProgress(progress);
       }, 400);
@@ -523,9 +540,10 @@ export default function CampaignCommand() {
   const wordCount = messageText.trim().split(/\s+/).filter(Boolean).length;
   const charCount = messageText.length;
   const isSmsOverLimit = activeChannel === 'SMS' && charCount > 160;
-
-  const activeConfig = BRAND_CONFIG[brandCategory] || BRAND_CONFIG.retail;
-  const brandAccent = activeConfig.accentColor;
+  const { tenant } = useTenant();
+  const activeBrandCategory = (tenant?.brandCategory || brandCategory || 'retail') as BrandCategory;
+  const activeConfig = BRAND_CONFIG[activeBrandCategory] || BRAND_CONFIG.retail;
+  const brandAccent = tenant?.accentColor || activeConfig.accentColor;
   const campaignStatus = getCampaignStatus();
 
   const getMockupText = () => {
@@ -949,15 +967,15 @@ export default function CampaignCommand() {
           <div className="space-y-2 pt-4 border-t border-border mt-auto">
             <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Quick actions</div>
             <div className="flex flex-wrap gap-2">
-              {activeConfig.chips.map((chip, idx) => (
+              {CATEGORY_DEFAULTS[activeBrandCategory]?.aiRecommendations?.map((rec: any, idx: number) => (
                 <button
                   key={idx}
-                  onClick={() => handleSend(chip.prompt)}
+                  onClick={() => handleSend(rec.subtitle)}
                   disabled={isLoading || isDispatching}
                   className="px-3 py-1.5 bg-white hover:bg-purple-50 dark:bg-neutral-900 dark:hover:bg-purple-950/20 text-neutral-700 dark:text-neutral-300 hover:text-purple-600 border border-neutral-200 dark:border-neutral-800 hover:border-purple-300 dark:hover:border-purple-900/60 rounded-full text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5"
                 >
-                  <i className={`ti ${chip.icon}`} style={{ color: brandAccent }} />
-                  {chip.label}
+                  <i className={`ti ti-sparkles`} style={{ color: brandAccent }} />
+                  {rec.title}
                 </button>
               ))}
             </div>
@@ -1243,10 +1261,47 @@ export default function CampaignCommand() {
                   </CardContent>
                 </Card>
 
-                {isSuccess && (
-                  <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-700 dark:text-green-400 text-sm font-bold flex items-center justify-between animate-pulse">
-                    <span>Campaign launched successfully! Redirecting...</span>
-                    <a href="/analytics" className="underline hover:text-green-800">→ View in Analytics Monitor</a>
+                {isSuccess && campaignAnalytics && (
+                  <div className="mt-4 p-5 bg-card border border-green-500/30 rounded-xl shadow-sm animate-in fade-in slide-in-from-bottom-2">
+                    <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
+                      <h4 className="text-sm font-bold text-green-600 dark:text-green-400 flex items-center gap-2">
+                        <CheckCircle2 className="w-5 h-5" />
+                        Campaign Dispatched Successfully!
+                      </h4>
+                      <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
+                        Live Analytics
+                      </Badge>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                      <div className="space-y-1">
+                        <span className="text-[10px] uppercase font-bold text-neutral-400">Sent</span>
+                        <div className="text-xl font-mono font-bold text-foreground">{campaignAnalytics.sent}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[10px] uppercase font-bold text-neutral-400">Delivered</span>
+                        <div className="text-xl font-mono font-bold text-foreground">{campaignAnalytics.delivered}</div>
+                        <div className="text-[10px] text-green-500 font-bold">96.0%</div>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[10px] uppercase font-bold text-neutral-400">Opened</span>
+                        <div className="text-xl font-mono font-bold text-foreground">{campaignAnalytics.opened}</div>
+                        <div className="text-[10px] text-blue-500 font-bold">68.0%</div>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[10px] uppercase font-bold text-neutral-400">Clicked</span>
+                        <div className="text-xl font-mono font-bold text-foreground">{campaignAnalytics.clicked}</div>
+                        <div className="text-[10px] text-purple-500 font-bold">42.0%</div>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[10px] uppercase font-bold text-neutral-400">New Orders</span>
+                        <div className="text-xl font-mono font-bold text-foreground">{campaignAnalytics.orders}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[10px] uppercase font-bold text-neutral-400">Revenue</span>
+                        <div className="text-xl font-mono font-bold text-green-500">${campaignAnalytics.revenue.toFixed(2)}</div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

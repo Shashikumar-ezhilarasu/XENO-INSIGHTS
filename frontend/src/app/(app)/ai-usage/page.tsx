@@ -17,6 +17,7 @@ import React, { useState, useEffect } from 'react';
 import { Bot, Cpu, Activity, ShieldCheck, Database, FileText, Trash2, Download, RefreshCw, CheckCircle2, AlertCircle, Zap } from 'lucide-react';
 import { AiLogRecord } from '../../../lib/aiLogger';
 import { cn } from '../../../utils/cn';
+import { useTenant } from '../../../lib/authContext';
 
 interface SparklinePoint {
   x: number;
@@ -31,8 +32,11 @@ interface SparklinePoint {
 export default function AiUsagePage(): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<'overview' | 'registry' | 'logs'>('overview');
   
+  const { tenant, token } = useTenant();
+  
   // Local telemetry states
   const [logs, setLogs] = useState<AiLogRecord[]>([]);
+  const [dbLogs, setDbLogs] = useState<any[]>([]);
   const [totalCalls, setTotalCalls] = useState(0);
   const [totalTokens, setTotalTokens] = useState(0);
   const [tokenLog, setTokenLog] = useState<{ timestamp: string; tokens: number }[]>([]);
@@ -94,10 +98,27 @@ export default function AiUsagePage(): React.JSX.Element {
     }
   };
 
+  const loadDbLogs = async () => {
+    if (!token) return;
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+      const res = await fetch(`${backendUrl}/api/tenant/ai-logs`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDbLogs(data.data || []);
+      }
+    } catch (e) {
+      console.error('Failed to load DB logs', e);
+    }
+  };
+
   useEffect(() => {
     loadTelemetry();
     checkHealth();
-  }, []);
+    loadDbLogs();
+  }, [token]);
 
   // Clear logs action
   const handleClearLogs = () => {
@@ -495,26 +516,61 @@ export default function AiUsagePage(): React.JSX.Element {
                 {filteredLogs.length > 0 ? (
                   filteredLogs.map(log => (
                     <tr key={log.id} className="hover:bg-secondary/10 transition duration-150">
-                      <td className="py-4 px-6 font-mono text-xs text-neutral-400">{log.id}</td>
+                      <td className="py-4 px-6 font-mono text-xs text-neutral-400">{log.id.slice(0, 8)}...</td>
                       <td className="py-4 px-6 text-xs text-neutral-400">{new Date(log.timestamp).toLocaleString()}</td>
                       <td className="py-4 px-6 font-medium text-foreground">{log.endpoint}</td>
                       <td className="py-4 px-6 text-center">
                         <span className={cn(
-                          "px-2 py-0.5 rounded text-xs font-semibold",
-                          log.status >= 200 && log.status < 300 ? "bg-green-500/10 text-green-500" :
-                          log.status >= 400 ? "bg-red-500/10 text-red-500" : "bg-neutral-500/10 text-neutral-400"
+                          "px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider",
+                          log.status === 200 ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
                         )}>
-                          {log.status || 'FAIL'}
+                          {log.status}
                         </span>
                       </td>
-                      <td className="py-4 px-6 text-right font-mono text-xs text-foreground">{log.latencyMs}ms</td>
-                      <td className="py-4 px-6 text-right font-mono text-xs text-amber-500 font-medium">{log.tokensUsed || '0'}</td>
+                      <td className="py-4 px-6 text-right font-mono text-xs text-neutral-400">{log.latencyMs}ms</td>
+                      <td className="py-4 px-6 text-right font-mono font-bold text-foreground">{log.tokensUsed.toLocaleString()}</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-neutral-500">
-                      No matching log records found
+                    <td colSpan={6} className="py-12 text-center text-neutral-500 text-sm">
+                      No local logs found matching your criteria.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          
+          <div className="p-4 border-y border-border flex justify-between items-center bg-secondary/10">
+            <h3 className="font-bold text-foreground">Historical DB Logs (Tenant Data)</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b border-border bg-secondary/10 text-xs text-neutral-400 font-semibold uppercase tracking-wider">
+                  <th className="py-3.5 px-6">ID</th>
+                  <th className="py-3.5 px-6">Date</th>
+                  <th className="py-3.5 px-6">Endpoint</th>
+                  <th className="py-3.5 px-6">Prompt Snippet</th>
+                  <th className="py-3.5 px-6 text-right">Tokens Out</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border text-sm text-neutral-300">
+                {dbLogs.length > 0 ? (
+                  dbLogs.map(log => (
+                    <tr key={log.id} className="hover:bg-secondary/10 transition duration-150">
+                      <td className="py-4 px-6 font-mono text-xs text-neutral-400">{log.id.slice(0, 8)}</td>
+                      <td className="py-4 px-6 text-xs text-neutral-400">{new Date(log.createdAt).toLocaleString()}</td>
+                      <td className="py-4 px-6 font-medium text-foreground">{log.endpoint}</td>
+                      <td className="py-4 px-6 text-xs text-neutral-500 truncate max-w-[200px]">{log.promptExcerpt || '-'}</td>
+                      <td className="py-4 px-6 text-right font-mono font-bold text-foreground">{log.tokensOut}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center text-neutral-500 text-sm">
+                      No historical logs found.
                     </td>
                   </tr>
                 )}
