@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { Loader2, Activity, Terminal, Database, Send, CheckCircle, Eye, MousePointerClick, RefreshCw, XCircle } from 'lucide-react';
+import { Loader2, Activity, Terminal, Database, Send, CheckCircle, Eye, MousePointerClick, RefreshCw, XCircle, Settings } from 'lucide-react';
 import { Button } from './ui/button';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';

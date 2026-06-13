@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useSharedState } from '../../../hooks/useSharedState';
 import { useLivePolling } from '../../../hooks/useLivePolling';
 import { useTenant } from '../../../lib/authContext';
@@ -987,11 +988,14 @@ export default function OverviewPage() {
   const [businessName, setBusinessName] = useState('');
   const [businessIndustry, setBusinessIndustry] = useState('');
 
-  const { tenant } = useTenant();
+  const { tenant, token, refreshProfile } = useTenant();
   const prefs = tenant?.preferences;
   const brandCategory = tenant?.brandCategory || 'retail';
   const [mainProduct, setMainProduct] = useState('');
   const [dbUri, setDbUri] = useState('postgresql://localhost:5432/xeno_crm');
+  const [accentColor, setAccentColor] = useState('#8b5cf6');
+  const [kpiPrimaryLabel, setKpiPrimaryLabel] = useState('Customers');
+  const [kpiRevenueLabel, setKpiRevenueLabel] = useState('Revenue');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionStatusText, setConnectionStatusText] = useState('');
@@ -1003,6 +1007,24 @@ export default function OverviewPage() {
 
   // Check onboarding on mount
   useEffect(() => {
+    if (tenant) {
+      setIsOnboarded(true);
+      setBusinessName(tenant.brandName || '');
+      setBusinessIndustry(tenant.brandCategory || 'Coffee & Retail');
+      setBrandCategoryState(tenant.brandCategory || 'retail');
+      
+      try {
+        const productLabels = typeof tenant.preferences?.productLabels === 'string' 
+          ? JSON.parse(tenant.preferences.productLabels) 
+          : tenant.preferences?.productLabels || {};
+        setMainProduct(productLabels.primary || '');
+      } catch (e) {
+        setMainProduct('');
+      }
+      setIsOnboardingLoading(false);
+      return;
+    }
+
     try {
       const onboarded = localStorage.getItem('xeno_onboarded');
       if (onboarded === 'true') {
@@ -1022,7 +1044,7 @@ export default function OverviewPage() {
     } finally {
       setIsOnboardingLoading(false);
     }
-  }, []);
+  }, [tenant]);
 
   // Fetch RFM customer clusters
   useEffect(() => {
@@ -1198,6 +1220,40 @@ export default function OverviewPage() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-3 gap-4 pt-2">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider block">Accent Color (Hex)</label>
+                  <input
+                    type="text"
+                    placeholder="#8b5cf6"
+                    value={accentColor}
+                    onChange={(e) => setAccentColor(e.target.value)}
+                    className="w-full bg-secondary/35 border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider block">KPI Primary</label>
+                  <input
+                    type="text"
+                    placeholder="Customers"
+                    value={kpiPrimaryLabel}
+                    onChange={(e) => setKpiPrimaryLabel(e.target.value)}
+                    className="w-full bg-secondary/35 border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider block">KPI Revenue</label>
+                  <input
+                    type="text"
+                    placeholder="Revenue"
+                    value={kpiRevenueLabel}
+                    onChange={(e) => setKpiRevenueLabel(e.target.value)}
+                    className="w-full bg-secondary/35 border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              </div>
+
+
               <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/10 text-[11px] text-purple-900 dark:text-purple-300 font-medium leading-relaxed">
                 ℹ️ Connect your database or upload a CSV/JSON file to compile customer aggregates.
               </div>
@@ -1358,13 +1414,37 @@ export default function OverviewPage() {
                 </Button>
                 
                 <Button 
-                  onClick={() => {
+                  onClick={async () => {
                     localStorage.setItem('xeno_brand_category', brandCategoryState);
                     localStorage.setItem('xeno_onboarded', 'true');
                     localStorage.setItem('xeno_business_name', businessName);
                     localStorage.setItem('xeno_business_industry', businessIndustry);
                     localStorage.setItem('xeno_main_product', mainProduct);
                     localStorage.setItem('xeno_db_uri', dbUri);
+                    
+                    if (token) {
+                      try {
+                        await fetch(`${BACKEND_URL}/api/tenant/settings`, {
+                          method: 'PUT',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${token}`
+                          },
+                          body: JSON.stringify({
+                            brandName: businessName,
+                            brandCategory: brandCategoryState,
+                            accentColor: accentColor,
+                            kpiPrimaryLabel: kpiPrimaryLabel,
+                            kpiRevenueLabel: kpiRevenueLabel,
+                            dbUri: dbUri
+                          })
+                        });
+                        if (refreshProfile) await refreshProfile();
+                      } catch (e) {
+                        console.error('Failed to sync profile', e);
+                      }
+                    }
+
                     setIsOnboarded(true);
                     
                     // Trigger the Tour Modal now that onboarding is complete!
@@ -1405,7 +1485,8 @@ export default function OverviewPage() {
         </div>
         
         {/* Upload Button */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex flex-col items-end gap-3 shrink-0">
+          <div className="flex items-center gap-3">
           {isConnecting && (
             <div className="flex items-center gap-2 text-xs font-bold text-purple-600 animate-pulse bg-purple-500/10 px-3 py-1.5 rounded-lg border border-purple-500/20">
               <Loader2 className="w-3 h-3 animate-spin" />
@@ -1444,6 +1525,51 @@ export default function OverviewPage() {
           </label>
         </div>
       </div>
+      </div>
+
+      {/* Business Identity Personalization Banner */}
+      {tenant && (
+        <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-xl p-6 mb-6">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-white text-2xl font-black shadow-lg">
+                {tenant.brandName ? tenant.brandName.charAt(0).toUpperCase() : 'X'}
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-foreground">{tenant.brandName || 'Your Business'}</h2>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="text-xs font-medium text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+                    {tenant.brandCategory || 'Retail'}
+                  </span>
+                  <span className="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                    Goal: {tenant.preferences?.primaryCampaignGoal === 'retention' ? 'Increase Repeat Purchases' : 'Customer Acquisition'}
+                  </span>
+                  <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    Channels: {tenant.preferences?.defaultChannel || 'WhatsApp + Email'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            {/* AI Insight Box */}
+            <div className="bg-card/50 backdrop-blur-sm border border-border rounded-xl p-4 flex-1 md:max-w-md shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <Bot className="w-4 h-4 text-purple-500" />
+                <span className="text-[10px] uppercase tracking-wider font-bold text-neutral-500">AI Platform Insight</span>
+              </div>
+              <p className="text-sm font-medium text-foreground mb-3">
+                Dormant customers in the {tenant.brandCategory} segment increased by 14% this month.
+              </p>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-neutral-500">Recommendation:</span>
+                <Link href="/campaigns" className="text-xs font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 flex items-center gap-1">
+                  Launch Reactivation Campaign <ArrowRight className="w-3 h-3" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="p-4 rounded-xl border border-red-200 dark:border-red-950 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 text-sm text-center">

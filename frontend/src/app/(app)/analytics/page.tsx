@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLivePolling } from '../../../hooks/useLivePolling';
 import AnalyticsDashboard from '../../../components/AnalyticsDashboard';
-import SystemMonitorPanel from '../../../components/SystemMonitorPanel';
+
 import { 
   Loader2, RefreshCw, Calculator, CheckCircle2, 
   AlertCircle, Ticket, Percent, Activity, TrendingUp, HelpCircle, Sparkles
@@ -576,10 +576,6 @@ export default function AnalyticsPage() {
 
           </section>
 
-          {/* System Monitor Injection */}
-          <section className="mt-8">
-            <SystemMonitorPanel fullScreen={false} />
-          </section>
 
         </div>
       )}
