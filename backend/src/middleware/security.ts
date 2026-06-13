@@ -249,7 +249,8 @@ export function validateCampaignSend(req: Request, res: Response, next: NextFunc
  * Input validation for external webhook callbacks.
  */
 export function validateWebhookCallback(req: Request, res: Response, next: NextFunction) {
-  const { communicationId, status, errorMsg } = req.body;
+  const communicationId = req.body.communication_id || req.body.communicationId;
+  const { status, errorMsg } = req.body;
 
   if (!communicationId || typeof communicationId !== 'string' || !UUID_REGEX.test(communicationId)) {
     return res.status(400).json({ error: 'communicationId is required and must be a valid UUID.' });
@@ -259,7 +260,7 @@ export function validateWebhookCallback(req: Request, res: Response, next: NextF
     return res.status(400).json({ error: 'status is required and must be a string.' });
   }
 
-  const validStatuses = ['PENDING', 'SENT', 'DELIVERED', 'OPENED', 'READ', 'CLICKED', 'FAILED'];
+  const validStatuses = ['PENDING', 'SENT', 'DELIVERED', 'OPENED', 'READ', 'CLICKED', 'CONVERTED', 'FAILED'];
   if (!validStatuses.includes(status.toUpperCase())) {
     return res.status(400).json({ error: `status must be one of: ${validStatuses.join(', ')}` });
   }

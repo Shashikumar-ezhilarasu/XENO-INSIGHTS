@@ -61,25 +61,23 @@ export async function sendViaChannel(params: ChannelSendParams): Promise<{ statu
   let client: Client | null = null;
 
   try {
-    client = new Client({ name: 'xeno-crm', version: '1.0.0' }, { capabilities: {} });
-    const transport = new StreamableHTTPClientTransport(new URL(`${mcpUrl}/mcp`));
-    await client.connect(transport);
-
-    const result = await client.callTool({
-      name: toolName, 
-      arguments: {
+    const response = await fetch(`${mcpUrl}/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         recipient_id: params.recipient_id,
         recipient_phone: params.recipient_phone,
+        recipient_email: params.recipient_email,
         message: params.message,
         campaign_id: params.campaign_id,
         communication_id: params.communication_id,
         crm_callback_url: params.crm_callback_url,
-        ...(params.recipient_email && { recipient_email: params.recipient_email }),
-      }
+        channel: params.channel
+      })
     });
 
-    const content = result.content as Array<{ type: string; text: string }>;
-    const parsed = JSON.parse(content[0].text);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const parsed = await response.json();
 
     console.log(`[MCP Client] Sent via ${params.channel} MCP: ${params.communication_id}`);
     return parsed;
