@@ -189,8 +189,8 @@ async function generateMockData(url: string, category: string, body?: any) {
     const channel = body?.channel || 'SMS';
     const nudgeContext = body?.nudgeContext || '';
     
-    // Check if the user has an API key in localStorage
-    const apiKey = localStorage.getItem('xeno_gemini_api_key');
+    // Check if the user has an API key in the environment or localStorage
+    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || localStorage.getItem('xeno_gemini_api_key');
     
     if (apiKey && apiKey.trim() !== '') {
       try {
@@ -232,6 +232,28 @@ Requirements:
           };
         }));
         
+        // Log AI Usage to simulate token consumption
+        try {
+          if (typeof window !== 'undefined') {
+            const logsStr = localStorage.getItem('xeno_ai_logs');
+            const logs = logsStr ? JSON.parse(logsStr) : [];
+            const newLog = {
+              id: 'sim-' + Date.now().toString(36) + Math.random().toString(36).substring(2, 5),
+              endpoint: '/api/ai/nudge-draft',
+              status: 200,
+              latencyMs: Math.floor(Math.random() * 800) + 400,
+              tokensUsed: customers.length * 85,
+              timestamp: new Date().toISOString()
+            };
+            logs.unshift(newLog);
+            localStorage.setItem('xeno_ai_logs', JSON.stringify(logs.slice(0, 100)));
+            const currentTotal = parseInt(localStorage.getItem('xeno_token_total') || '0', 10);
+            localStorage.setItem('xeno_token_total', (currentTotal + newLog.tokensUsed).toString());
+            const callsCount = parseInt(localStorage.getItem('xeno_ai_call_count') || '0', 10);
+            localStorage.setItem('xeno_ai_call_count', (callsCount + 1).toString());
+          }
+        } catch(e) {}
+
         return { drafts };
       } catch (e) {
         console.warn('Gemini REST API failed, falling back to mock generator', e);
@@ -256,6 +278,28 @@ Requirements:
       };
     });
     
+    // Log AI Usage to simulate token consumption for mock too
+    try {
+      if (typeof window !== 'undefined') {
+        const logsStr = localStorage.getItem('xeno_ai_logs');
+        const logs = logsStr ? JSON.parse(logsStr) : [];
+        const newLog = {
+          id: 'sim-' + Date.now().toString(36) + Math.random().toString(36).substring(2, 5),
+          endpoint: '/api/ai/nudge-draft',
+          status: 200,
+          latencyMs: Math.floor(Math.random() * 300) + 100,
+          tokensUsed: customers.length * 45,
+          timestamp: new Date().toISOString()
+        };
+        logs.unshift(newLog);
+        localStorage.setItem('xeno_ai_logs', JSON.stringify(logs.slice(0, 100)));
+        const currentTotal = parseInt(localStorage.getItem('xeno_token_total') || '0', 10);
+        localStorage.setItem('xeno_token_total', (currentTotal + newLog.tokensUsed).toString());
+        const callsCount = parseInt(localStorage.getItem('xeno_ai_call_count') || '0', 10);
+        localStorage.setItem('xeno_ai_call_count', (callsCount + 1).toString());
+      }
+    } catch(e) {}
+
     return { drafts };
   }
 
