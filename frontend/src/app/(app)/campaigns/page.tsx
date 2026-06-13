@@ -38,6 +38,7 @@ import {
   TableRow,
 } from "../../../components/ui/table";
 import { Button } from "../../../components/ui/button";
+import SystemMonitorPanel from "../../../components/SystemMonitorPanel";
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000";
@@ -730,13 +731,7 @@ function AISegmentsStudioContent() {
 
   const handleProceedToCampaign = () => {
     if (!segmentData) return;
-    setSelectedAudience({
-      audienceSize: segmentData.audienceSize,
-      customers: segmentData.customers,
-      query: prompt,
-      explanation: segmentData.explanation,
-    });
-    router.push("/campaigns/builder");
+    // Handled directly via inline handleDraftCampaign now
   };
 
   const handleResetWorkspace = () => {
@@ -1196,6 +1191,13 @@ function AISegmentsStudioContent() {
         </div>
       )}
 
+      {/* System Monitor Integration (Appears on Launch) */}
+      {broadcastSuccess && (
+        <div className="mt-8 animate-scaleUp">
+          <SystemMonitorPanel fullScreen={false} />
+        </div>
+      )}
+
       {/* Original Manual Target Segment Results Preview Panel */}
       {segmentData && !isParsing && (
         <Card className="shadow-xl animate-scaleUp">
@@ -1214,14 +1216,25 @@ function AISegmentsStudioContent() {
             </div>
           </CardHeader>
           <CardContent className="pt-6 space-y-6">
-            {/* Logic explanation */}
-            <div className="space-y-2">
-              <span className="text-xs text-neutral-500 uppercase tracking-wider block font-semibold">
-                AI Translation Logic
-              </span>
-              <p className="text-foreground text-sm bg-secondary p-3 rounded-lg border border-border font-medium">
-                {segmentData.explanation}
-              </p>
+            {/* Logic explanation & Generated SQL */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <span className="text-xs text-neutral-500 uppercase tracking-wider block font-semibold">
+                  AI Translation Logic
+                </span>
+                <p className="text-foreground text-sm bg-secondary p-3 rounded-lg border border-border font-medium">
+                  {segmentData.explanation}
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <span className="text-xs text-neutral-500 uppercase tracking-wider block font-semibold">
+                  Generated SQL / Prisma Query
+                </span>
+                <pre className="text-green-400 bg-neutral-900 p-4 rounded-lg border border-neutral-800 text-xs overflow-x-auto shadow-inner whitespace-pre-wrap font-mono">
+                  {segmentData.generatedQuery || "No query generated"}
+                </pre>
+              </div>
             </div>
 
             {/* Preview table */}
@@ -1263,8 +1276,8 @@ function AISegmentsStudioContent() {
             {/* Action button */}
             {segmentData.audienceSize > 0 && (
               <div className="flex justify-end pt-4 border-t border-border">
-                <Button onClick={handleProceedToCampaign} className="space-x-2">
-                  <span>Proceed to Campaign Setup</span>
+                <Button onClick={() => handleDraftCampaign(prompt)} className="space-x-2">
+                  <span>Generate Campaign Content</span>
                   <ArrowRightCircle className="w-4 h-4" />
                 </Button>
               </div>

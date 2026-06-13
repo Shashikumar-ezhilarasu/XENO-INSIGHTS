@@ -16,9 +16,11 @@ export default function Sidebar() {
   const navItems = [
     { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Campaign Manager', href: '/campaigns', icon: Send },
+    { name: 'AI Orchestrator', href: '/campaigns/command', icon: Bot },
     { name: 'Nudge Engine', href: '/nudge', icon: Zap },
     { name: 'Gamification Studio', href: '/gamification', icon: Trophy },
     { name: 'Analytics Monitor', href: '/analytics', icon: BarChart2 },
+    { name: 'System Monitor', href: '/simulator', icon: Settings },
     { name: 'AI Usage and Tokens', href: '/ai-usage', icon: Bot, pulse: true },
     { name: 'Team Members', href: '/team', icon: UserCircle2 },
     { name: 'Settings', href: '#', icon: Settings },
