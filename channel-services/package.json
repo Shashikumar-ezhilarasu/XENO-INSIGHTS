@@ -1,0 +1,25 @@
+{
+  "name": "xeno-channel-services",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start:whatsapp": "tsx whatsapp-mcp/server.ts",
+    "start:sms": "tsx sms-mcp/server.ts",
+    "start:email-rcs": "tsx email-rcs-mcp/server.ts",
+    "build": "tsc",
+    "start:whatsapp:prod": "node dist/whatsapp-mcp/server.js",
+    "start:sms:prod": "node dist/sms-mcp/server.js",
+    "start:email-rcs:prod": "node dist/email-rcs-mcp/server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "express": "^4.18.2",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
