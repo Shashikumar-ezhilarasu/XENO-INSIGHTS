@@ -3,7 +3,7 @@
 import React, { useEffect } from 'react';
 
 // Generates dynamic mock data based on the business category
-function generateMockData(url: string, category: string) {
+async function generateMockData(url: string, category: string, body?: any) {
   const isCoffee = category.includes('Coffee');
   const isFashion = category.includes('Fashion') || category.includes('Apparel');
   const isBeauty = category.includes('Beauty') || category.includes('Cosmetics');
@@ -183,7 +183,83 @@ function generateMockData(url: string, category: string) {
     };
   }
 
-  // 5. Default empty for anything else
+  // 5. Nudge Generation via Gemini or Fallback
+  if (url.includes('/api/ai/nudge-draft')) {
+    const customers = body?.customers || [];
+    const channel = body?.channel || 'SMS';
+    const nudgeContext = body?.nudgeContext || '';
+    
+    // Check if the user has an API key in localStorage
+    const apiKey = localStorage.getItem('xeno_gemini_api_key');
+    
+    if (apiKey && apiKey.trim() !== '') {
+      try {
+        // Call the actual Gemini REST API
+        const drafts = await Promise.all(customers.map(async (c: any) => {
+          const prompt = `You are a marketing co-pilot for a ${category} brand.
+Draft a short personalized marketing nudge (max 200 characters) for the following customer:
+Name: ${c.name}
+Favorite Category: ${c.favoriteCategory || 'General'}
+Total Spends: $${c.totalSpends || 0}
+Preferred Channel: ${channel}
+Additional Context: ${nudgeContext || "None"}
+
+Requirements:
+1. Speak directly to the customer by name.
+2. Keep it under 200 characters.
+3. Align with the brand category style.
+4. Do not include placeholders like [Name]. Use the customer's actual data.
+5. Return ONLY the drafted message string. No surrounding quotes or labels.`;
+
+          const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }]
+            })
+          });
+
+          if (!geminiRes.ok) throw new Error('Gemini API call failed');
+          const geminiData = await geminiRes.json();
+          const text = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "AI Generation Failed";
+
+          return {
+            customerId: c.id,
+            name: c.name,
+            message: text.trim(),
+            success: true,
+            fallback: false
+          };
+        }));
+        
+        return { drafts };
+      } catch (e) {
+        console.warn('Gemini REST API failed, falling back to mock generator', e);
+      }
+    }
+    
+    // Fallback: Realistic Mock Generator
+    const drafts = customers.map((c: any) => {
+      let msg = '';
+      if (nudgeContext) {
+        // Inject name into the context intelligently
+        msg = `Hey ${c.name.split(' ')[0]}! ${nudgeContext.substring(0, 100).trim()} Tap here: https://link.xeno.com/${c.id.substring(0,5)}`;
+      } else {
+        msg = `Hi ${c.name.split(' ')[0]}, it's been a while! Check out our new ${c.favoriteCategory} arrivals and use code COMEBACK10 for 10% off your next purchase.`;
+      }
+      return {
+        customerId: c.id,
+        name: c.name,
+        message: msg,
+        success: true,
+        fallback: true
+      };
+    });
+    
+    return { drafts };
+  }
+
+  // 6. Default empty for anything else
   return {};
 }
 
@@ -209,9 +285,17 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
       } catch (err) {
         console.warn(`[Simulation Layer] Intercepted failed fetch to ${requestUrl}. Injecting category-specific dummy data.`);
         
+        // Extract request body for simulation context if applicable
+        let reqBody: any = null;
+        if (args[1] && (args[1] as RequestInit).body && typeof (args[1] as RequestInit).body === 'string') {
+          try {
+            reqBody = JSON.parse((args[1] as RequestInit).body as string);
+          } catch(e) {}
+        }
+        
         // Extract category from localStorage
         const category = localStorage.getItem('xeno_brand_category') || 'Coffee & Cafe';
-        const mockData = generateMockData(requestUrl, category);
+        const mockData = await generateMockData(requestUrl, category, reqBody);
 
         // Delay slightly to simulate network
         await new Promise(r => setTimeout(r, 600));

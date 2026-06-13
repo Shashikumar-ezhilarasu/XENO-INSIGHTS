@@ -58,6 +58,13 @@ export default function NudgePage(): React.JSX.Element {
   // Nudge Composition state
   const [selectedChannel, setSelectedChannel] = useState<'SMS' | 'EMAIL' | 'WHATSAPP' | 'RCS'>('SMS');
   const [nudgeContext, setNudgeContext] = useState('');
+  const [geminiKey, setGeminiKey] = useState('');
+  
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setGeminiKey(localStorage.getItem('xeno_gemini_api_key') || '');
+    }
+  }, []);
   const [isDrafting, setIsDrafting] = useState(false);
   const [drafts, setDrafts] = useState<DraftNudge[]>([]);
   
@@ -429,6 +436,25 @@ export default function NudgePage(): React.JSX.Element {
                 rows={3}
                 className="w-full p-3 border border-border rounded-xl bg-secondary/20 text-sm focus:outline-none focus:ring-1 focus:ring-foreground"
               />
+            </div>
+
+            {/* API Key Configure (Local Only) */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wider flex justify-between">
+                <span>Gemini API Key (Client-side AI)</span>
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Get Key</a>
+              </label>
+              <input
+                type="password"
+                value={geminiKey}
+                onChange={e => {
+                  setGeminiKey(e.target.value);
+                  if (typeof window !== 'undefined') localStorage.setItem('xeno_gemini_api_key', e.target.value);
+                }}
+                placeholder="AIzaSy..."
+                className="w-full p-2.5 border border-border rounded-xl bg-secondary/10 text-sm focus:outline-none focus:ring-1 focus:ring-foreground font-mono"
+              />
+              <p className="text-[10px] text-neutral-500">Enable direct client-side generation using Gemini when backend is unreachable.</p>
             </div>
 
             {/* Action Buttons */}
