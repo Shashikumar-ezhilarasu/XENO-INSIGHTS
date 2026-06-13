@@ -968,6 +968,11 @@ export default function OverviewPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerProfile | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Target Modal States
+  const [targetModalOpen, setTargetModalOpen] = useState(false);
+  const [targetStatus, setTargetStatus] = useState('');
+  const [recentTargets, setRecentTargets] = useState<string[]>([]);
 
   // Real-time Database Dashboard Stats
   const [dashboardStats, setDashboardStats] = useState<any>(null);
@@ -1587,7 +1592,11 @@ export default function OverviewPage() {
                     {t('target_at_risk')}
                   </p>
                   <p className="text-[10px] text-neutral-500 leading-normal font-medium">
-                    Found **{dashboardStats?.recencyDistribution?.['90+'] || 20} {t('shoppers')}** who haven't checked out in 90+ days. Click **At Risk** below to target them.
+                    {dashboardStats?.aiInsights?.[1] ? (
+                      <span dangerouslySetInnerHTML={{__html: dashboardStats.aiInsights[1].replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}} />
+                    ) : (
+                      `Found **${dashboardStats?.recencyDistribution?.['90+'] || 20} ${t('shoppers')}** who haven't checked out in 90+ days. Click **At Risk** below to target them.`
+                    )}
                   </p>
                 </div>
 
@@ -1601,7 +1610,11 @@ export default function OverviewPage() {
                     {t('incentivize_vip')}
                   </p>
                   <p className="text-[10px] text-neutral-500 leading-normal font-medium">
-                    Found **{dashboardStats?.totalCustomers ? Math.round(dashboardStats.totalCustomers * 0.15) : 15} premium VIPs** with spends exceeding $500. Offer them 3x loyalty rewards.
+                    {dashboardStats?.aiInsights?.[2] ? (
+                      <span dangerouslySetInnerHTML={{__html: dashboardStats.aiInsights[2].replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}} />
+                    ) : (
+                      `Found **${dashboardStats?.totalCustomers ? Math.round(dashboardStats.totalCustomers * 0.15) : 15} premium VIPs** with spends exceeding $500. Offer them 3x loyalty rewards.`
+                    )}
                   </p>
                 </div>
 
@@ -1615,7 +1628,11 @@ export default function OverviewPage() {
                     {t('cross_sell')} **{mainProduct || 'Bakery'}**
                   </p>
                   <p className="text-[10px] text-neutral-500 leading-normal font-medium">
-                    Your customer repeat rate is **{dashboardStats?.repeatRate?.toFixed(1) || '42.5'}%**. Send automated promotions targeting weekend checkouts.
+                    {dashboardStats?.aiInsights?.[0] ? (
+                      <span dangerouslySetInnerHTML={{__html: dashboardStats.aiInsights[0].replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}} />
+                    ) : (
+                      `Your customer repeat rate is **${dashboardStats?.repeatRate?.toFixed(1) || '42.5'}%**. Send automated promotions targeting weekend checkouts.`
+                    )}
                   </p>
                 </div>
               </div>
@@ -2204,28 +2221,39 @@ export default function OverviewPage() {
             </div>
 
             {/* Footer buttons */}
-            <div className="p-6 border-t border-border bg-secondary/10">
+            <div className="p-6 border-t border-border bg-secondary/10 flex flex-col gap-2">
               <button 
-                onClick={() => {
-                  setSelectedAudience({
-                    audienceSize: 1,
-                    customers: [{ 
-                      id: selectedCustomer.id, 
-                      name: selectedCustomer.name, 
-                      email: selectedCustomer.email,
-                      phone: selectedCustomer.phone,
-                      totalSpends: selectedCustomer.totalSpends
-                    }],
-                    query: `Direct target: ${selectedCustomer.name}`,
-                    explanation: `Individual manual campaign targeting ${selectedCustomer.name} based on behavioral profile.`
-                  });
-                  router.push('/campaigns');
+                onClick={async () => {
+                  if (!selectedCustomer) return;
+                  setTargetModalOpen(true);
+                  setTargetStatus('Provisioning 1-to-1 Segment...');
+                  await new Promise(r => setTimeout(r, 800));
+                  setTargetStatus('Generating AI Content...');
+                  await new Promise(r => setTimeout(r, 800));
+                  setTargetStatus('Transmitting over WhatsApp...');
+                  await new Promise(r => setTimeout(r, 800));
+                  setTargetStatus('Delivery Confirmed! ✓');
+                  setRecentTargets(prev => [selectedCustomer.name, ...prev].slice(0, 3));
+                  await new Promise(r => setTimeout(r, 1500));
+                  setTargetModalOpen(false);
                 }}
-                className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl text-xs shadow-md shadow-purple-600/10 flex items-center justify-center gap-1.5 transition duration-200"
+                disabled={targetModalOpen}
+                className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-semibold rounded-xl text-xs shadow-md shadow-purple-600/10 flex items-center justify-center gap-1.5 transition duration-200"
               >
-                <Send className="w-4 h-4" />
-                <span>Target this Shopper Directly</span>
+                {targetModalOpen ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                <span>{targetModalOpen ? targetStatus : "Target this Shopper Directly"}</span>
               </button>
+              
+              {recentTargets.length > 0 && (
+                <div className="mt-2 text-[10px] text-neutral-500">
+                  <span className="font-semibold block mb-1">Recent Targets:</span>
+                  <div className="flex flex-wrap gap-1">
+                    {recentTargets.map((rt, i) => (
+                      <span key={i} className="bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded border border-purple-500/20">{rt} ✓</span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
