@@ -136,15 +136,28 @@ const router = Router();
  * GET /api/queue/stats
  * @description Returns zeroed static job status stats to satisfy the frontend AI Marketplace layout.
  */
-router.get('/stats', (req: Request, res: Response) => {
-  return res.json({
-    campaign: { waiting: 0, active: 0, completed: 0, failed: 0 },
-    webhook: { waiting: 0, active: 0, completed: 0, failed: 0 },
-    nudge: { waiting: 0, active: 0, completed: 0, failed: 0 },
-    totals: { waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0 },
-    isProcessing: false,
-    note: 'Queue infrastructure deferred — future enhancement',
-  });
+router.get('/stats', async (req: Request, res: Response) => {
+  try {
+    const { campaignDispatchQueue } = require('../config/queue');
+    const campaignStats = await campaignDispatchQueue.getJobCounts('active', 'completed', 'failed', 'delayed', 'waiting');
+
+    return res.json({
+      campaign: campaignStats,
+      webhook: { waiting: 0, active: 0, completed: 0, failed: 0 },
+      nudge: { waiting: 0, active: 0, completed: 0, failed: 0 },
+      totals: {
+        active: campaignStats.active,
+        completed: campaignStats.completed,
+        failed: campaignStats.failed,
+        delayed: campaignStats.delayed,
+        waiting: campaignStats.waiting
+      },
+      isProcessing: (campaignStats.active > 0 || campaignStats.waiting > 0),
+      note: 'Live BullMQ metrics for campaign routing'
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: 'Failed to fetch queue stats', details: error.message });
+  }
 });
 
 /**
