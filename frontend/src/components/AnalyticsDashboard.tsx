@@ -174,6 +174,7 @@ export default function AnalyticsDashboard({ analytics }: AnalyticsDashboardProp
     { name: 'Delivered', count: totalDelivered },
     { name: 'Opened', count: totalOpened },
     { name: 'Clicked', count: totalClicked },
+    { name: 'Converted', count: totalAttributedOrders },
   ];
 
   return (
@@ -227,7 +228,7 @@ export default function AnalyticsDashboard({ analytics }: AnalyticsDashboardProp
             <Activity className="w-4 h-4 text-blue-400" />
           </div>
           <p className="text-3xl font-bold font-mono text-foreground">{totalAttributedOrders}</p>
-          <span className="text-[9px] text-neutral-500 block font-medium">Orders from campaigns</span>
+          <span className="text-[9px] text-green-500 font-bold bg-green-500/10 px-2 py-0.5 rounded border border-green-500/20 inline-block mt-1">✔ Triggered by CONVERTED webhook</span>
         </div>
 
         {/* Card 6: Attributed Revenue */}
@@ -237,7 +238,7 @@ export default function AnalyticsDashboard({ analytics }: AnalyticsDashboardProp
             <TrendingUp className="w-4 h-4 text-green-400" />
           </div>
           <p className="text-3xl font-bold font-mono text-foreground">${totalAttributedRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-          <span className="text-[9px] text-neutral-500 block font-medium">Estimated ROAS</span>
+          <span className="text-[9px] text-green-500 font-bold bg-green-500/10 px-2 py-0.5 rounded border border-green-500/20 inline-block mt-1">✔ ROAS from CONVERTED webhook</span>
         </div>
 
         {/* Card 7: Read */}
