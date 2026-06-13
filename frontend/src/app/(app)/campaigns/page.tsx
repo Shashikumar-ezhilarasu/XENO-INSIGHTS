@@ -152,6 +152,7 @@ function AISegmentsStudioContent() {
   const { setSelectedAudience } = useSharedState();
 
   const [prompt, setPrompt] = useState("");
+  const [campaignType, setCampaignType] = useState("STANDARD");
   const [isParsing, setIsParsing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const categories = ["All", "F&B / Cafe", "Retail & Apparel", "Beauty & Cosmetics", "High-Value VIP"];
@@ -413,6 +414,7 @@ function AISegmentsStudioContent() {
           tone: toneVal,
           incentive: incentiveVal,
           channelOverride: channelVal,
+          campaignType: campaignType,
         }),
       });
 
@@ -576,6 +578,14 @@ function AISegmentsStudioContent() {
             );
         }
       }
+      
+      if (campaignType === "SPIN_WHEEL" || campaignType === "SCRATCH_CARD") {
+        mockDraft.gamifiedConfig = {
+          gameType: campaignType,
+          prizePool: "Free Croissant, 50 Points, 10% Off Coupon, Free Coffee, Try Again",
+          milestoneTriggerPoints: 100
+        } as any;
+      }
 
       setDraftCampaign(mockDraft);
       setEditCampaignName(mockDraft.campaign.name);
@@ -639,20 +649,20 @@ function AISegmentsStudioContent() {
 
       setBroadcastSuccess(true);
 
-      // Redirect to Analytics Monitor
+      // Redirect to Simulator
       setTimeout(() => {
-        router.push("/analytics");
+        router.push("/simulator");
       }, 1500);
     } catch (err: any) {
       console.warn(
-        "Network broadcast failed, running offline simulation fallback:",
+        "Broadcast API failed, proceeding with offline simulation:",
         err,
       );
       setBroadcastSuccess(true);
 
-      // Redirect to Analytics Monitor
+      // Redirect to Simulator
       setTimeout(() => {
-        router.push("/analytics");
+        router.push("/simulator");
       }, 1500);
     }
   };
@@ -772,6 +782,21 @@ function AISegmentsStudioContent() {
         <div className="space-y-4 bg-card border border-border p-6 rounded-2xl shadow-sm">
           {/* Prompt input bar */}
           <form onSubmit={handleParsePrompt} className="relative space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4 mb-2">
+              <div className="w-full sm:w-1/3">
+                <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1 block">Campaign Type</label>
+                <select 
+                  value={campaignType}
+                  onChange={(e) => setCampaignType(e.target.value)}
+                  className="w-full bg-secondary/30 border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-purple-500 transition"
+                >
+                  <option value="STANDARD">Standard Campaign</option>
+                  <option value="LOYALTY">Loyalty Campaign</option>
+                  <option value="SPIN_WHEEL">Spin Wheel Campaign</option>
+                  <option value="SCRATCH_CARD">Scratch Card Campaign</option>
+                </select>
+              </div>
+            </div>
             <div className="relative flex items-center bg-secondary/30 border border-border rounded-xl px-4 py-3 focus-within:border-neutral-400 dark:focus-within:border-neutral-600 transition duration-300">
               <Sparkles className="text-purple-500 dark:text-purple-400 w-5 h-5 mr-3 shrink-0" />
               <input

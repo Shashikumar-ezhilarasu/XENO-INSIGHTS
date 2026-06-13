@@ -58,7 +58,6 @@ export async function sendViaChannel(params: ChannelSendParams): Promise<{ statu
     throw new Error(`No MCP server configured for channel: ${params.channel}`);
   }
 
-  let client: Client | null = null;
 
   try {
     const response = await fetch(`${mcpUrl}/send`, {
@@ -86,10 +85,6 @@ export async function sendViaChannel(params: ChannelSendParams): Promise<{ statu
     // Fallback: log warning and simulate locally
     console.warn(`[MCP Client] ${params.channel} MCP unreachable (${err.message}), using local fallback`);
     return { status: 'queued_local_fallback', communication_id: params.communication_id };
-  } finally {
-    if (client) {
-      try { await client.close(); } catch {}
-    }
   }
 }
 

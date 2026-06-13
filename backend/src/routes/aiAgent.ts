@@ -432,7 +432,7 @@ function getLocalizedPreset(promptText: string, langCode: string) {
  * Automatically orchestrates a campaign draft
  */
 router.post('/ai/draft-campaign', aiSegmentRateLimiter, validateAiSegment, async (req: Request, res: Response) => {
-  const { promptText, tone, incentive, channelOverride, language } = req.body;
+  const { promptText, tone, incentive, channelOverride, language, campaignType } = req.body;
 
   let queryData;
   let useFallback = false;
@@ -535,6 +535,7 @@ router.post('/ai/draft-campaign', aiSegmentRateLimiter, validateAiSegment, async
       if (incentive) prompt += ` and dynamic target incentive: "${incentive}"`;
       if (channelOverride) prompt += ` and route channel override: "${channelOverride}"`;
       if (language) prompt += ` and draft all copywriting text (notificationHeader, messageTemplate, creativeQuote, primaryCallToAction) in the target language: "${language}" (e.g. English, Spanish, Tamil, Hindi, French).`;
+      if (campaignType && campaignType !== "STANDARD") prompt += ` Ensure you set gamifiedConfig.gameType to ${campaignType} and generate an appropriate prizePool.`;
 
       const result = await model.generateContent(prompt);
       const responseText = result.response.text();
