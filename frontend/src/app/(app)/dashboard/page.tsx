@@ -7,6 +7,8 @@ import { useLivePolling } from '../../../hooks/useLivePolling';
 import CampaignList from '../../../components/CampaignList';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Badge } from '../../../components/ui/badge';
+import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import { 
   Users, Send, CheckCircle2, Eye, Loader2, Sparkles, 
   AlertTriangle, Moon, Award, Calendar, ShoppingBag, 
@@ -1251,10 +1253,10 @@ export default function OverviewPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider block">Upload Data File (CSV / JSON)</label>
+                <label className="text-xs text-neutral-500 font-bold uppercase tracking-wider block">Upload Data File (CSV / JSON / EXCEL)</label>
                 <input
                   type="file"
-                  accept=".csv, .json, application/json, text/csv"
+                  accept=".csv, .json, application/json, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
                   onChange={(e) => {
                     const file = e.target.files?.[0] || null;
                     setSelectedFile(file);
@@ -1286,20 +1288,46 @@ export default function OverviewPage() {
                     setIsConnecting(true);
                     
                     if (selectedFile) {
-                      setConnectionStatusText('Uploading and parsing data file...');
-                      const formData = new FormData();
-                      formData.append('file', selectedFile);
+                      setConnectionStatusText('Extracting and converting data on client...');
                       try {
+                        const fileExt = selectedFile.name.split('.').pop()?.toLowerCase();
+                        let payloadData: any[] = [];
+
+                        if (fileExt === 'json') {
+                          const text = await selectedFile.text();
+                          payloadData = JSON.parse(text);
+                        } else if (fileExt === 'csv') {
+                          const text = await selectedFile.text();
+                          const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+                          payloadData = parsed.data;
+                        } else if (fileExt === 'xlsx' || fileExt === 'xls') {
+                          const arrayBuffer = await selectedFile.arrayBuffer();
+                          const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                          const sheetName = workbook.SheetNames[0];
+                          const worksheet = workbook.Sheets[sheetName];
+                          payloadData = XLSX.utils.sheet_to_json(worksheet);
+                        } else {
+                          throw new Error('Unsupported file format');
+                        }
+
+                        setConnectionStatusText(`Transmitting ${payloadData.length} records to CRM Engine...`);
+                        
+                        const jsonBlob = new Blob([JSON.stringify(payloadData)], { type: 'application/json' });
+                        const formData = new FormData();
+                        formData.append('file', jsonBlob, 'processed_data.json');
+                        
                         const res = await fetch(`${BACKEND_URL}/api/ingest/file`, {
                           method: 'POST',
                           body: formData
                         });
-                        if (!res.ok) throw new Error('Upload failed');
+                        
+                        if (!res.ok) throw new Error('Upload transmission failed');
                         const data = await res.json();
+                        
                         setConnectionStatusText(`Ingestion Success! Processed ${data.summary?.processed || 0} records...`);
                         await new Promise(r => setTimeout(r, 1000));
-                      } catch (e) {
-                         setConnectionStatusText('Upload Failed. Please check the backend connection.');
+                      } catch (e: any) {
+                         setConnectionStatusText(`Upload Failed: ${e.message || 'Please check backend connection.'}`);
                          await new Promise(r => setTimeout(r, 2000));
                          setIsConnecting(false);
                          return;
