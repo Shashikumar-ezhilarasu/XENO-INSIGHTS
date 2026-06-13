@@ -7,17 +7,21 @@ const router = Router();
  * GET /api/customers
  * List customers with pagination.
  */
-router.get('/customers', async (req: Request, res: Response) => {
+router.get(['/customers', '/crm/customers'], async (req: Request, res: Response) => {
   try {
     const search = req.query.search as string || '';
-    const page = parseInt(req.query.page as string) || 1;
+    const tag = req.query.tag as string || '';
+    const spendTier = req.query.spendTier as string || '';
+    const recency = req.query.recency as string || '';
+    const channel = req.query.channel as string || '';
     const limit = parseInt(req.query.limit as string) || 10;
+    const offset = req.query.offset ? parseInt(req.query.offset as string) : undefined;
+    const page = parseInt(req.query.page as string) || 1;
+    const skip = offset !== undefined ? offset : (page - 1) * limit;
     
     if (page < 1 || limit < 1) {
       return res.status(400).json({ error: 'Page and limit must be positive integers.' });
     }
-
-    const skip = (page - 1) * limit;
 
     const where: any = {};
     if (search) {
@@ -27,7 +31,52 @@ router.get('/customers', async (req: Request, res: Response) => {
       ];
     }
 
-    const [customers, total] = await prisma.$transaction([
+    if (tag) {
+      const tagLower = tag.toLowerCase();
+      if (tagLower === 'vip') {
+        where.totalSpends = { ...where.totalSpends, gt: 200 };
+      } else if (tagLower === 'loyal') {
+        where.loyaltyPoints = { ...where.loyaltyPoints, gt: 500 };
+      } else if (tagLower.includes('coffee') || tagLower.includes('cafe')) {
+        where.favoriteCategory = 'Coffee';
+      } else if (tagLower.includes('apparel') || tagLower.includes('fashion')) {
+        where.favoriteCategory = 'Apparel';
+      } else if (tagLower.includes('bakery')) {
+        where.favoriteCategory = 'Bakery';
+      } else if (tagLower.includes('beauty') || tagLower.includes('wellness') || tagLower.includes('cosmetics')) {
+        where.favoriteCategory = 'Beauty';
+      } else if (tagLower.includes('accessories') || tagLower.includes('jewelry')) {
+        where.favoriteCategory = 'Accessories';
+      }
+    }
+
+    if (spendTier) {
+      const tierLower = spendTier.toLowerCase();
+      if (tierLower === 'high' || tierLower === 'vip') {
+        where.totalSpends = { ...where.totalSpends, gte: 200 };
+      } else if (tierLower === 'medium') {
+        where.totalSpends = { ...where.totalSpends, gte: 50, lt: 200 };
+      } else if (tierLower === 'low') {
+        where.totalSpends = { ...where.totalSpends, lt: 50 };
+      }
+    }
+
+    if (recency) {
+      const days = parseInt(recency);
+      if (!isNaN(days)) {
+        where.lastVisitDate = {
+          gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+        };
+      }
+    }
+
+    if (channel) {
+      where.preferredCommunication = {
+        equals: channel.toUpperCase()
+      };
+    }
+
+    const [customers, filteredCount, totalCount] = await prisma.$transaction([
       prisma.customer.findMany({
         where,
         skip,
@@ -43,7 +92,8 @@ router.get('/customers', async (req: Request, res: Response) => {
           }
         }
       }),
-      prisma.customer.count({ where })
+      prisma.customer.count({ where }),
+      prisma.customer.count()
     ]);
 
     const formattedCustomers = customers.map(c => {
@@ -86,12 +136,15 @@ router.get('/customers', async (req: Request, res: Response) => {
     });
 
     return res.json({
+      customers: formattedCustomers,
+      total: totalCount,
+      filtered: filteredCount,
       data: formattedCustomers,
       meta: {
-        total,
+        total: filteredCount,
         page,
         limit,
-        totalPages: Math.ceil(total / limit)
+        totalPages: Math.ceil(filteredCount / limit)
       }
     });
   } catch (error: any) {

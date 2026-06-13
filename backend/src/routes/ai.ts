@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import prisma from '../config/prisma';
 import { validateSqlQuery, validatePrismaWhere } from '../utils/queryValidator';
-import { validateAiSegment, aiSegmentRateLimiter } from '../middleware/security';
+import { validateAiSegment, aiSegmentRateLimiter, nudgeEngineRateLimiter } from '../middleware/security';
 
 const router = Router();
 
@@ -88,6 +88,7 @@ router.post('/segment', aiSegmentRateLimiter, validateAiSegment, async (req: Req
     console.log(`Analyzing segment prompt: "${promptText}"`);
     const prompt = `Analyze this prompt and generate the database query: "${promptText}"`;
     let responseText = "";
+    let usageMetadata: any = null;
     try {
       if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.startsWith('AIzaSy...')) {
          throw new Error("Gemini API key is not configured.");
@@ -95,6 +96,7 @@ router.post('/segment', aiSegmentRateLimiter, validateAiSegment, async (req: Req
       const result = await model.generateContent(prompt);
       responseText = result.response.text();
       responseText = responseText.replace(/```json\n?|```/g, '').trim();
+      usageMetadata = result.response.usageMetadata;
     } catch (apiErr: any) {
       if (process.env.NODE_ENV === 'test') {
         throw apiErr;
@@ -191,7 +193,12 @@ router.post('/segment', aiSegmentRateLimiter, validateAiSegment, async (req: Req
       explanation: queryData.explanation,
       generatedQuery: executedQuery,
       audienceSize: customers.length,
-      customers
+      customers,
+      usageMetadata: usageMetadata ? {
+        promptTokens: usageMetadata.promptTokenCount || 0,
+        completionTokens: usageMetadata.candidatesTokenCount || 0,
+        totalTokens: usageMetadata.totalTokenCount || (usageMetadata.promptTokenCount + usageMetadata.candidatesTokenCount) || 0
+      } : null
     });
 
   } catch (error: any) {
@@ -249,8 +256,19 @@ router.post('/draft-message', aiSegmentRateLimiter, async (req: Request, res: Re
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const result = await model.generateContent(prompt);
     const draftText = result.response.text().trim();
+    const usage = result.response.usageMetadata;
+    const usageMetadata = usage ? {
+      promptTokens: usage.promptTokenCount || 0,
+      completionTokens: usage.candidatesTokenCount || 0,
+      totalTokens: usage.totalTokenCount || (usage.promptTokenCount + usage.candidatesTokenCount) || 0
+    } : null;
 
-    return res.json({ draft: draftText, body: draftText, message: draftText });
+    return res.json({
+      draft: draftText,
+      body: draftText,
+      message: draftText,
+      usageMetadata
+    });
   } catch (error: any) {
     console.error('Systemic error drafting message:', error);
     
@@ -327,8 +345,18 @@ Also provide 3 distinct, tailored campaign ideas they could run using the CRM.`;
     const result = await model.generateContent(prompt);
     let responseText = result.response.text();
     responseText = responseText.replace(/```json\n?|```/g, '').trim();
+    const usage = result.response.usageMetadata;
+    const usageMetadata = usage ? {
+      promptTokens: usage.promptTokenCount || 0,
+      completionTokens: usage.candidatesTokenCount || 0,
+      totalTokens: usage.totalTokenCount || (usage.promptTokenCount + usage.candidatesTokenCount) || 0
+    } : null;
 
-    return res.json(JSON.parse(responseText));
+    const parsed = JSON.parse(responseText);
+    return res.json({
+      ...parsed,
+      usageMetadata
+    });
   } catch (error: any) {
     console.error('Systemic error generating onboarding strategy:', error);
     return res.status(500).json({ 
@@ -651,9 +679,17 @@ Based on the user's latest input, output the JSON campaign proposal.`;
     const result = await model.generateContent(promptText);
     let text = result.response.text();
     text = text.replace(/```json\n?|```/g, '').trim();
+    const usage = result.response.usageMetadata;
     
     proposal = JSON.parse(text);
     proposal = await enrichAudienceData(proposal);
+    if (usage) {
+      proposal.usageMetadata = {
+        promptTokens: usage.promptTokenCount || 0,
+        completionTokens: usage.candidatesTokenCount || 0,
+        totalTokens: usage.totalTokenCount || (usage.promptTokenCount + usage.candidatesTokenCount) || 0
+      };
+    }
 
     return res.json(proposal);
   } catch (error: any) {
@@ -662,6 +698,185 @@ Based on the user's latest input, output the JSON campaign proposal.`;
     proposal = await enrichAudienceData(proposal);
     return res.json(proposal);
   }
+});
+
+const CATEGORY_PROMPTS: Record<string, string> = {
+  coffee_cafe: "You are drafting a nudge for a Coffee & Cafe brand. Use warm, comforting, barista-style language. Recommending a morning brew or cozy pastry.",
+  retail: "You are drafting a nudge for a Retail & General Store brand. Use energetic, deal-focused, friendly shopkeeper language. Highlight smart savings or new arrivals.",
+  food_beverage: "You are drafting a nudge for a Food & Beverages brand. Use delicious, mouth-watering, appetizing language. Recommending a savory treat or refreshing drink.",
+  beauty_cosmetics: "You are drafting a nudge for a Beauty & Cosmetics brand. Use soothing, self-care focused, premium beauty language. Highlight relaxation, rejuvenation, or glowing skin.",
+  fashion_apparel: "You are drafting a nudge for a Fashion & Apparel brand. Use trendy, stylish, chic language. Highlight matching trends, fits, and looking best.",
+  jewelry_accessories: "You are drafting a nudge for a Jewelry & Accessories brand. Use elegant, high-end, classic language. Highlight premium quality, sparkle, and custom designs."
+};
+
+function getOfflineNudgeFallback(customer: any, channel: string, category: string): string {
+  const name = customer.name;
+  switch (category) {
+    case 'coffee_cafe':
+      return `Hey ${name}! Cozy up with your favorite warm brew today. Stop by for a freshly brewed cup and a pastry on us!`;
+    case 'retail':
+      return `Hi ${name}! Check out our latest arrivals this week. Use code SHOP20 for 20% off your next checkout!`;
+    case 'food_beverage':
+      return `Hey ${name}! Hungry? Order your favorite meal today and enjoy free delivery on your next dish!`;
+    case 'beauty_cosmetics':
+      return `Hi ${name}! Treat yourself to a relaxing self-care session. Book today for a special pampering beauty treat.`;
+    case 'fashion_apparel':
+      return `Hey ${name}! Fresh seasonal looks are here. Upgrade your style file with our new premium fits today.`;
+    case 'jewelry_accessories':
+      return `Hi ${name}! Complete your outfit with one of our custom accessories. Order today and get free shipping!`;
+    default:
+      return `Hi ${name}! We miss you. Check out our latest updates and specials designed just for you!`;
+  }
+}
+
+/**
+ * GET /api/ai/health
+ * @description Verifies connection and latency to Gemini AI servers using a minimal token ping request
+ */
+router.get('/health', async (req: Request, res: Response) => {
+  const startTime = Date.now();
+  try {
+    if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.startsWith('AIzaSy...')) {
+      return res.status(503).json({
+        status: 'UNAVAILABLE',
+        message: 'Gemini API key is not configured.',
+        latencyMs: 0,
+        model: 'gemini-2.5-flash'
+      });
+    }
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: 'Ping' }] }],
+      generationConfig: { maxOutputTokens: 1 }
+    });
+
+    const latencyMs = Date.now() - startTime;
+    return res.status(200).json({
+      status: 'HEALTHY',
+      message: 'Gemini API connection is active.',
+      latencyMs,
+      model: 'gemini-2.5-flash',
+      usageMetadata: result.response.usageMetadata || null
+    });
+  } catch (err: any) {
+    const latencyMs = Date.now() - startTime;
+    return res.status(500).json({
+      status: 'UNHEALTHY',
+      error: err.message,
+      latencyMs,
+      model: 'gemini-2.5-flash'
+    });
+  }
+});
+
+/**
+ * POST /api/ai/nudge-draft
+ * @description Generates batch personalized nudges using Gemini models or local domain-specific fallbacks
+ * @security nudgeEngineRateLimiter (20 req/min)
+ */
+router.post('/nudge-draft', nudgeEngineRateLimiter, async (req: Request, res: Response) => {
+  const { customers, channel, category, nudgeContext } = req.body;
+
+  if (!customers || !Array.isArray(customers) || customers.length === 0) {
+    return res.status(400).json({ error: 'customers array is required and cannot be empty.' });
+  }
+  if (!channel) {
+    return res.status(400).json({ error: 'channel is required.' });
+  }
+  if (!category) {
+    return res.status(400).json({ error: 'category is required.' });
+  }
+
+  const useFallback = !process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.startsWith('AIzaSy...');
+  
+  const results: any[] = [];
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+
+  // We process in batches of 10 using Promise.allSettled
+  const batchSize = 10;
+  for (let i = 0; i < customers.length; i += batchSize) {
+    const batch = customers.slice(i, i + batchSize);
+    
+    const promises = batch.map(async (customer) => {
+      if (useFallback) {
+        return {
+          customerId: customer.id,
+          name: customer.name,
+          message: getOfflineNudgeFallback(customer, channel, category),
+          success: true,
+          fallback: true
+        };
+      }
+
+      try {
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+        const promptInstruction = CATEGORY_PROMPTS[category] || "You are a marketing co-pilot.";
+        const promptText = `
+${promptInstruction}
+Draft a short personalized marketing nudge (max 200 characters) for the following customer:
+Name: ${customer.name}
+Favorite Category: ${customer.favoriteCategory || 'General'}
+Total Spends: $${customer.totalSpends || 0}
+Preferred Channel: ${channel}
+Additional Context: ${nudgeContext || "None"}
+
+Requirements:
+1. Speak directly to the customer by name.
+2. Keep it under 200 characters.
+3. Align with the brand category style.
+4. Do not include placeholders like [Name]. Use the customer's actual data.
+5. Return ONLY the drafted message string. No surrounding quotes or labels.
+`;
+        const result = await model.generateContent(promptText);
+        const text = result.response.text().trim();
+        const usage = result.response.usageMetadata;
+        if (usage) {
+          totalInputTokens += usage.promptTokenCount || 0;
+          totalOutputTokens += usage.candidatesTokenCount || 0;
+        }
+
+        return {
+          customerId: customer.id,
+          name: customer.name,
+          message: text,
+          success: true,
+          fallback: false
+        };
+      } catch (err: any) {
+        console.error(`Gemini failed to generate nudge for customer ${customer.id}:`, err.message);
+        return {
+          customerId: customer.id,
+          name: customer.name,
+          message: getOfflineNudgeFallback(customer, channel, category),
+          success: true,
+          fallback: true
+        };
+      }
+    });
+
+    const settled = await Promise.allSettled(promises);
+    settled.forEach((item) => {
+      if (item.status === 'fulfilled') {
+        results.push(item.value);
+      } else {
+        results.push({
+          success: false,
+          error: item.reason?.message || 'Unknown error'
+        });
+      }
+    });
+  }
+
+  return res.status(200).json({
+    drafts: results,
+    usageMetadata: useFallback ? null : {
+      promptTokens: totalInputTokens,
+      completionTokens: totalOutputTokens,
+      totalTokens: totalInputTokens + totalOutputTokens
+    }
+  });
 });
 
 export default router;
