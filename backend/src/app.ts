@@ -16,6 +16,10 @@ import ingestRouter from './routes/ingest';
 import channelRouter from './routes/channel';
 import swarmRouter from './routes/swarm';
 import { initCron } from './config/cron';
+// FUTURE ENHANCEMENT: Enable when queue infrastructure is active
+// import { startAllWorkers } from './config/workers';
+import queueRouter from './routes/queue';
+import { requestIdMiddleware, requestLogger, payloadSizeGuard, queryInjectionGuard } from './middleware/security';
 
 // Load environment variables
 dotenv.config();
@@ -26,14 +30,13 @@ const PORT = process.env.PORT || 8080;
 // Enable Cross-Origin Resource Sharing (CORS)
 app.use(cors());
 
+app.use(requestIdMiddleware);
+app.use(payloadSizeGuard);
+app.use(queryInjectionGuard);
+app.use(requestLogger);
+
 // Parse incoming request bodies as JSON
 app.use(express.json());
-
-// Request logger middleware
-app.use((req: Request, res: Response, next: NextFunction) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  next();
-});
 
 // Register routes
 app.use('/api', crmRouter);
@@ -47,6 +50,7 @@ app.use('/api/triggers', triggersRouter);
 app.use('/api/ingest', ingestRouter);
 app.use('/api/channel', channelRouter);
 app.use('/api/ai', swarmRouter);
+app.use('/api/queue', queueRouter);
 
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
@@ -90,6 +94,8 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 // Start Express server and verify DB connectivity
 if (process.env.NODE_ENV !== 'test') {
   initCron();
+  // FUTURE ENHANCEMENT: Enable when queue infrastructure is active
+  // startAllWorkers();
   app.listen(Number(PORT), '0.0.0.0', async () => {
     console.log(`========================================`);
     console.log(`CRM Backend Server running on port ${PORT}`);

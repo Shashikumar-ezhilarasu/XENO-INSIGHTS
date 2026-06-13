@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import prisma from '../config/prisma';
+// import { campaignDispatchQueue } from '../config/queue';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { validateSqlQuery, validatePrismaWhere } from '../utils/queryValidator';
 import { validateCampaignCreate, validateCampaignSend, campaignSendRateLimiter } from '../middleware/security';
@@ -257,22 +258,15 @@ router.post('/send', campaignSendRateLimiter, validateCampaignSend, async (req: 
       })
     ]);
 
-    const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`;
-    const channelServiceUrl = `${backendUrl}/api/channel/send`;
-
-    setImmediate(() => {
-      console.log(`[Campaign Engine] Initiating async dispatch for ${communicationRecords.length} messages. A/B Test: ${isABTest}`);
-      
+    if (process.env.NODE_ENV !== 'test') {
       communicationRecords.forEach(async (record) => {
         const customer = customerMap.get(record.customerId);
         if (!customer) return;
 
         try {
-          // Calculate hyper-personalized attributes
           const latestOrder = customer.orders && customer.orders.length > 0 ? customer.orders[0] : null;
           const lastPurchasedItem = latestOrder ? latestOrder.category : 'special item';
           
-          // Favorite category (most frequent order category)
           const categoryCounts: Record<string, number> = {};
           customer.orders.forEach(o => {
             categoryCounts[o.category] = (categoryCounts[o.category] || 0) + 1;
@@ -289,59 +283,91 @@ router.post('/send', campaignSendRateLimiter, validateCampaignSend, async (req: 
 
           const loyaltyPoints = customer.loyaltyPoints;
 
-          // Select correct template based on A/B test variant assignment
           const baseTemplate = (record.variant === 'B' && campaign.messageTemplateB)
             ? campaign.messageTemplateB
             : (campaign.messageTemplate || '');
 
-          // Replace personalized variables dynamically
           const personalizedMessage = baseTemplate
             .replace(/\{\{\s*name\s*\}\}/gi, customer.name)
             .replace(/\{\{\s*last_purchased_item\s*\}\}/gi, lastPurchasedItem)
             .replace(/\{\{\s*favorite_category\s*\}\}/gi, favoriteCategory)
             .replace(/\{\{\s*total_loyalty_points\s*\}\}/gi, String(loyaltyPoints));
 
-          // Parse button actions
           let buttonsArray = undefined;
           if (campaign.buttons) {
             try {
               buttonsArray = JSON.parse(campaign.buttons);
             } catch (e) {
-              // If not JSON, split by comma
               buttonsArray = campaign.buttons.split(',').map(b => b.trim());
             }
           }
 
-          // Call the stub channel send endpoint
-          if (process.env.NODE_ENV === 'test') {
-            return;
-          }
+          // FUTURE ENHANCEMENT: Queue-based dispatch
+          // When queue infrastructure is re-enabled, replace the setTimeout
+          // below with this enqueue call:
+          //
+          // await campaignDispatchQueue.add(`dispatch-${record.id}`, {
+          //   communicationId: record.id,
+          //   recipientPhone: customer.phone,
+          //   recipientEmail: customer.email,
+          //   recipientName: customer.name,
+          //   message: personalizedMessage,
+          //   channel: record.channel || campaign.channel,
+          //   imageUrl: campaign.imageUrl || undefined,
+          //   buttons: buttonsArray
+          // });
 
-          const response = await fetch(channelServiceUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              communicationId: record.id,
-              recipient: {
-                name: customer.name,
-                phone: customer.phone,
-                email: customer.email
-              },
-              channel: record.channel || campaign.channel,
-              message: personalizedMessage,
-              imageUrl: campaign.imageUrl || undefined,
-              buttons: buttonsArray
-            })
-          });
+          // Current implementation: direct async dispatch
+          setTimeout(async () => {
+            try {
+              const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`;
+              const channelServiceUrl = `${backendUrl}/api/channel/send`;
+              
+              const response = await fetch(channelServiceUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  communicationId: record.id,
+                  recipient: {
+                    name: customer.name,
+                    phone: customer.phone,
+                    email: customer.email
+                  },
+                  channel: record.channel || campaign.channel,
+                  message: personalizedMessage,
+                  imageUrl: campaign.imageUrl || undefined,
+                  buttons: buttonsArray
+                })
+              });
 
-          if (!response.ok) {
-            console.error(`[Campaign Engine] Failed to dispatch communication ${record.id}: ${response.statusText}`);
-          }
-        } catch (dispatchError) {
-          console.error(`[Campaign Engine] Network error dispatching communication ${record.id}:`, dispatchError);
+              if (response.ok) {
+                await prisma.communication.update({
+                  where: { id: record.id },
+                  data: { status: 'SENT' }
+                });
+              } else {
+                await prisma.communication.update({
+                  where: { id: record.id },
+                  data: { status: 'FAILED', errorMsg: `Channel dispatch returned status ${response.status}` }
+                });
+              }
+            } catch (err: any) {
+              console.error(`[Campaign Engine] Failed to dispatch communication ${record.id}:`, err.message);
+              try {
+                await prisma.communication.update({
+                  where: { id: record.id },
+                  data: { status: 'FAILED', errorMsg: err.message }
+                });
+              } catch (dbErr) {
+                // ignore
+              }
+            }
+          }, 0);
+        } catch (enqueueError: any) {
+          console.error(`[Campaign Engine] Failed to dispatch for communication ${record.id}:`, enqueueError.message);
         }
       });
-    });
+    }
 
     return res.status(202).json({
       success: true,
