@@ -982,6 +982,7 @@ export default function OverviewPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionStatusText, setConnectionStatusText] = useState('');
+  const [brandCategory, setBrandCategoryState] = useState<string>('retail');
 
   // Dynamic Hooks for Presentation Simulation
   const dynamicCustomers = useMemo(() => getDynamicCustomers(businessIndustry), [businessIndustry]);
@@ -997,6 +998,11 @@ export default function OverviewPage() {
         setBusinessIndustry(localStorage.getItem('xeno_business_industry') || 'Coffee & Retail');
         setMainProduct(localStorage.getItem('xeno_main_product') || '');
         setDbUri(localStorage.getItem('xeno_db_uri') || 'postgresql://localhost:5432/xeno_crm');
+        
+        const savedCategory = localStorage.getItem('xeno_brand_category');
+        if (savedCategory) {
+          setBrandCategoryState(savedCategory);
+        }
       }
     } catch (e) {
       console.warn('LocalStorage not available:', e);
@@ -1219,7 +1225,7 @@ export default function OverviewPage() {
                 </Button>
               </div>
             </div>
-          ) : (
+          ) : onboardingStep === 2 ? (
             <div className="space-y-5">
               <h3 className="text-sm font-bold uppercase tracking-wider text-purple-600">Step 2: Connect Datasource</h3>
               
@@ -1309,22 +1315,74 @@ export default function OverviewPage() {
                     
                     setConnectionStatusText('Database Connection Success!');
                     await new Promise(r => setTimeout(r, 400));
-                    
+                    setIsConnecting(false);
+                    setOnboardingStep(3);
+                  }}
+                  disabled={isConnecting}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs"
+                >
+                  Connect & Sync Database
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+              <h3 className="text-sm font-bold uppercase tracking-wider text-purple-600">Step 3: What kind of brand are you?</h3>
+              <p className="text-xs text-neutral-500 font-medium">Select your brand category to personalize your AI copywriter's voice and campaign templates.</p>
+              
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                {[
+                  { key: 'coffee_cafe', label: 'Coffee & Cafe', iconClass: 'ti-coffee' },
+                  { key: 'retail', label: 'Retail & General Store', iconClass: 'ti-shopping-cart' },
+                  { key: 'food_beverage', label: 'Food & Beverages', iconClass: 'ti-tools-kitchen-2' },
+                  { key: 'fashion_apparel', label: 'Fashion & Apparel', iconClass: 'ti-hanger' },
+                  { key: 'beauty_cosmetics', label: 'Beauty & Cosmetics', iconClass: 'ti-sparkles' },
+                  { key: 'jewelry_accessories', label: 'Jewelry & Accessories', iconClass: 'ti-diamond' }
+                ].map(cat => {
+                  const isSelected = brandCategory === cat.key;
+                  return (
+                    <div
+                      key={cat.key}
+                      onClick={() => setBrandCategoryState(cat.key)}
+                      className={`cursor-pointer rounded-2xl border p-4 flex flex-col items-center justify-center gap-2 text-center transition-all ${
+                        isSelected 
+                          ? 'bg-purple-600/10 border-2 border-purple-600 text-purple-600 shadow-md scale-[1.02]' 
+                          : 'bg-secondary/40 border-border hover:bg-secondary/70 text-neutral-600 dark:text-neutral-300'
+                      }`}
+                    >
+                      <i className={`ti ${cat.iconClass} text-2xl`} />
+                      <span className="text-xs font-bold">{cat.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex justify-between items-center pt-4 mt-2">
+                <Button 
+                  variant="secondary"
+                  onClick={() => setOnboardingStep(2)}
+                  className="text-xs font-semibold"
+                >
+                  Back
+                </Button>
+                
+                <Button 
+                  onClick={() => {
+                    localStorage.setItem('xeno_brand_category', brandCategory);
                     localStorage.setItem('xeno_onboarded', 'true');
                     localStorage.setItem('xeno_business_name', businessName);
                     localStorage.setItem('xeno_business_industry', businessIndustry);
                     localStorage.setItem('xeno_main_product', mainProduct);
                     localStorage.setItem('xeno_db_uri', dbUri);
                     setIsOnboarded(true);
-                    setIsConnecting(false);
                     
                     // Trigger the Tour Modal now that onboarding is complete!
                     window.dispatchEvent(new Event('open-tour'));
                   }}
-                  disabled={isConnecting}
                   className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs"
                 >
-                  Connect & Sync Database
+                  Complete Setup
                 </Button>
               </div>
             </div>
