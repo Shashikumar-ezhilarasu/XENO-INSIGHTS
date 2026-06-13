@@ -385,6 +385,63 @@ export default function AiUsagePage(): React.JSX.Element {
               <span>Model: gemini-2.5-flash</span>
             </div>
           </div>
+
+          {/* WhatsApp MCP Server */}
+          <div className="bg-card border border-border p-6 rounded-2xl space-y-4">
+            <div className="flex justify-between items-start">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white" style={{ backgroundColor: '#25D366' }}>
+                <span className="font-bold text-lg">W</span>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full bg-green-500/10 text-green-500 text-[10px] font-bold uppercase tracking-wider">Live</span>
+            </div>
+            <div>
+              <h3 className="font-bold text-foreground">WhatsApp MCP Server</h3>
+              <p className="text-neutral-500 text-xs mt-1 leading-relaxed">
+                Standalone MCP server simulating WhatsApp Business API delivery. Exposes send_whatsapp_message, get_delivery_status, and get_channel_health tools. Fires async delivery callbacks (sent→delivered→opened→clicked) to the CRM receipt endpoint.
+              </p>
+            </div>
+            <div className="pt-2 border-t border-border flex justify-between text-[10px] text-neutral-500">
+              <span>Provider: MCP (Streamable HTTP)</span>
+            </div>
+          </div>
+
+          {/* SMS MCP Server */}
+          <div className="bg-card border border-border p-6 rounded-2xl space-y-4">
+            <div className="flex justify-between items-start">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white" style={{ backgroundColor: '#6366F1' }}>
+                <span className="font-bold text-lg">S</span>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full bg-green-500/10 text-green-500 text-[10px] font-bold uppercase tracking-wider">Live</span>
+            </div>
+            <div>
+              <h3 className="font-bold text-foreground">SMS MCP Server</h3>
+              <p className="text-neutral-500 text-xs mt-1 leading-relaxed">
+                Standalone MCP server simulating an SMS gateway. Validates message length, warns on multi-part SMS, and fires delivery callbacks. Deployed as an independent Railway service.
+              </p>
+            </div>
+            <div className="pt-2 border-t border-border flex justify-between text-[10px] text-neutral-500">
+              <span>Provider: MCP (Streamable HTTP)</span>
+            </div>
+          </div>
+
+          {/* Email + RCS MCP Server */}
+          <div className="bg-card border border-border p-6 rounded-2xl space-y-4">
+            <div className="flex justify-between items-start">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white" style={{ backgroundColor: '#0EA5E9' }}>
+                <span className="font-bold text-lg">E</span>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full bg-green-500/10 text-green-500 text-[10px] font-bold uppercase tracking-wider">Live</span>
+            </div>
+            <div>
+              <h3 className="font-bold text-foreground">Email + RCS MCP Server</h3>
+              <p className="text-neutral-500 text-xs mt-1 leading-relaxed">
+                Unified MCP server handling both Email and RCS channels. Email tool accepts subject lines; RCS tool supports rich media metadata. Separate delivery probability profiles per channel.
+              </p>
+            </div>
+            <div className="pt-2 border-t border-border flex justify-between text-[10px] text-neutral-500">
+              <span>Provider: MCP (Streamable HTTP)</span>
+            </div>
+          </div>
         </div>
       )}
 
