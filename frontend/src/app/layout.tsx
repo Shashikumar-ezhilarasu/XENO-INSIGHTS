@@ -1,6 +1,7 @@
 import './globals.css';
 import React from 'react';
 import { SharedStateProvider } from '../hooks/useSharedState';
+import { SimulationProvider } from '../components/SimulationProvider';
 
 export const metadata = {
   title: 'XENO AI SaaS Marketing CRM',
@@ -22,7 +23,9 @@ export default function RootLayout({
       </head>
       <body className="font-sans antialiased bg-background text-foreground selection:bg-foreground selection:text-background min-h-screen">
         <SharedStateProvider>
-          {children}
+          <SimulationProvider>
+            {children}
+          </SimulationProvider>
         </SharedStateProvider>
       </body>
     </html>
