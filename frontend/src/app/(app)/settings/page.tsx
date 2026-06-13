@@ -15,7 +15,8 @@ export default function SettingsPage() {
     brandCategory: '',
     accentColor: '',
     kpiPrimaryLabel: '',
-    kpiRevenueLabel: ''
+    kpiRevenueLabel: '',
+    dbUri: ''
   });
 
   useEffect(() => {
@@ -25,7 +26,8 @@ export default function SettingsPage() {
         brandCategory: tenant.brandCategory || '',
         accentColor: tenant.accentColor || '',
         kpiPrimaryLabel: tenant.preferences?.kpiPrimaryLabel || '',
-        kpiRevenueLabel: tenant.preferences?.kpiRevenueLabel || ''
+        kpiRevenueLabel: tenant.preferences?.kpiRevenueLabel || '',
+        dbUri: tenant.preferences?.dbUri || ''
       });
     }
   }, [tenant]);
@@ -130,6 +132,35 @@ export default function SettingsPage() {
                 onChange={e => setFormData({ ...formData, kpiRevenueLabel: e.target.value })}
                 className="mt-1"
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-2 border-purple-500/30 bg-purple-500/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <svg className="w-5 h-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+              </svg>
+              Live Datasource Syncing
+            </CardTitle>
+            <p className="text-sm text-neutral-400">
+              Connect your live PostgreSQL database to XENO CRM to directly compile customer aggregates and lifetime spend records.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="text-sm font-semibold text-neutral-400">Database Connection URI</label>
+              <Input 
+                type="password"
+                placeholder="postgresql://user:password@host:port/database"
+                value={formData.dbUri}
+                onChange={e => setFormData({ ...formData, dbUri: e.target.value })}
+                className="mt-1 font-mono text-sm bg-black/40 border-purple-500/20 focus:border-purple-500"
+              />
+              <p className="text-xs text-neutral-500 mt-2">
+                Your credentials are encrypted and stored securely. XENO only requires READ access to your replica or pooler.
+              </p>
             </div>
           </CardContent>
         </Card>

@@ -39,6 +39,7 @@ interface TenantProfile {
     productLabels: Record<string, string>;
     defaultSpinPrizes: string;
     primaryCampaignGoal: string;
+    dbUri?: string;
   } | null;
 }
 

@@ -51,6 +51,38 @@ router.put('/profile', async (req: any, res) => {
   }
 });
 
+// PUT /api/tenant/settings
+// Used by the settings page to update both account and preference fields
+router.put('/settings', async (req: any, res) => {
+  const { brandName, accentColor, kpiPrimaryLabel, kpiRevenueLabel, dbUri } = req.body;
+  try {
+    await prismaT.$transaction([
+      prismaT.tenantAccount.update({
+        where: { id: req.tenantId },
+        data: { brandName, accentColor }
+      }),
+      prismaT.tenantPreferences.upsert({
+        where: { tenantId: req.tenantId },
+        create: {
+          tenantId: req.tenantId,
+          kpiPrimaryLabel: kpiPrimaryLabel || 'Orders',
+          kpiRevenueLabel: kpiRevenueLabel || 'Revenue',
+          dbUri: dbUri || null
+        },
+        update: {
+          kpiPrimaryLabel,
+          kpiRevenueLabel,
+          dbUri
+        }
+      })
+    ]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Failed to update settings:', error);
+    res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
 // PUT /api/tenant/preferences
 router.put('/preferences', async (req: any, res) => {
   try {

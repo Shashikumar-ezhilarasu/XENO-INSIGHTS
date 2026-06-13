@@ -82,6 +82,9 @@ model TenantPreferences {
   defaultSpinPrizes     String   @default("Free Item, 50 Pts, 10% Off, Try Again")
   loyaltyPointsPerSpend Float    @default(1.0)           // points per $1 spent
 
+  // Datasource
+  dbUri                 String?
+
   updatedAt             DateTime @updatedAt
 
   @@map("tenant_preferences")
