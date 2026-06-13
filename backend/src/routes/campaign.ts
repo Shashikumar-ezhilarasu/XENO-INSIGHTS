@@ -6,7 +6,8 @@ import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { validateSqlQuery, validatePrismaWhere } from '../utils/queryValidator';
 import { validateCampaignCreate, validateCampaignSend, campaignSendRateLimiter } from '../middleware/security';
 import { sendViaChannel } from '../config/channelMcpClient';
-
+import { prismaT } from '../config/prismaT';
+import jwt from 'jsonwebtoken';
 const router = Router();
 
 // Initialize the Gemini SDK
@@ -151,6 +152,22 @@ router.post('/create', validateCampaignCreate, async (req: Request, res: Respons
         autoSplit: autoSplit ?? false
       }
     });
+
+    // Increment campaignsCreated if a tenant token is present
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const JWT_SECRET = process.env.JWT_SECRET || 'xeno-dev-secret-change-in-prod';
+        const decoded = jwt.verify(token, JWT_SECRET) as { tenantId: string };
+        await prismaT.tenantAccount.update({
+          where: { id: decoded.tenantId },
+          data: { campaignsCreated: { increment: 1 } }
+        });
+      } catch (err) {
+        console.warn('Failed to increment campaignsCreated for tenant:', err);
+      }
+    }
 
     return res.status(201).json({ success: true, campaign });
   } catch (error: any) {

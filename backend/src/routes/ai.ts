@@ -60,7 +60,7 @@ router.post('/segment', aiSegmentRateLimiter, validateAiSegment, async (req: Req
 
   try {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-1.5-flash',
       systemInstruction: SYSTEM_INSTRUCTION,
       generationConfig: {
         responseMimeType: 'application/json',
@@ -321,7 +321,7 @@ Generate a strategic recommendation on how they can leverage a CDP and CRM to im
 Also provide 3 distinct, tailored campaign ideas they could run using the CRM.`;
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-1.5-flash',
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: {
@@ -625,7 +625,7 @@ Return this exact schema:
 }`;
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-1.5-flash',
       systemInstruction: systemPrompt,
       generationConfig: {
         responseMimeType: 'application/json',
@@ -741,11 +741,11 @@ router.get('/health', async (req: Request, res: Response) => {
         status: 'UNAVAILABLE',
         message: 'Gemini API key is not configured.',
         latencyMs: 0,
-        model: 'gemini-2.5-flash'
+        model: 'gemini-1.5-flash'
       });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: 'Ping' }] }],
       generationConfig: { maxOutputTokens: 1 }
@@ -756,7 +756,7 @@ router.get('/health', async (req: Request, res: Response) => {
       status: 'HEALTHY',
       message: 'Gemini API connection is active.',
       latencyMs,
-      model: 'gemini-2.5-flash',
+      model: 'gemini-1.5-flash',
       usageMetadata: result.response.usageMetadata || null
     });
   } catch (err: any) {
@@ -765,7 +765,7 @@ router.get('/health', async (req: Request, res: Response) => {
       status: 'UNHEALTHY',
       error: err.message,
       latencyMs,
-      model: 'gemini-2.5-flash'
+      model: 'gemini-1.5-flash'
     });
   }
 });
@@ -811,7 +811,7 @@ router.post('/nudge-draft', nudgeEngineRateLimiter, async (req: Request, res: Re
       }
 
       try {
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
         const promptInstruction = CATEGORY_PROMPTS[category] || "You are a marketing co-pilot.";
         const promptText = `
 ${promptInstruction}

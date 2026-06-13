@@ -13,9 +13,11 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Search, SlidersHorizontal, CheckSquare, Square, User, Mail, Phone, DollarSign, Award, Send, RefreshCw, Layers, CheckCircle2, ChevronRight, X, AlertCircle, Zap, Activity } from 'lucide-react';
+import { Search, SlidersHorizontal, CheckSquare, Square, User, Mail, Phone, DollarSign, Award, Send, RefreshCw, Layers, CheckCircle2, ChevronRight, X, AlertCircle, Zap, Activity, Loader2, Eye, Sparkles } from 'lucide-react';
 import { trackedAiFetch } from '../../../lib/aiLogger';
 import { cn } from '../../../utils/cn';
+import { useTenant } from '../../../lib/authContext';
+import { Button } from '../../../components/ui/button';
 
 interface Customer {
   id: string;
@@ -45,20 +47,28 @@ interface DraftNudge {
  * @returns {React.JSX.Element} Nudge Page element
  */
 export default function NudgePage(): React.JSX.Element {
+  const { tenant } = useTenant();
+  const prefs = tenant?.preferences;
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>(tenant?.brandCategory || 'all');
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   
   // Drawer states
   const [selectedProfile, setSelectedProfile] = useState<Customer | null>(null);
 
   // Nudge Composition state
-  const [selectedChannel, setSelectedChannel] = useState<'SMS' | 'EMAIL' | 'WHATSAPP' | 'RCS'>('SMS');
-  const [nudgeContext, setNudgeContext] = useState('');
+  const [selectedChannel, setSelectedChannel] = useState<'SMS' | 'EMAIL' | 'WHATSAPP' | 'RCS'>((prefs?.defaultChannel as 'SMS' | 'EMAIL' | 'WHATSAPP' | 'RCS') || 'SMS');
+  const [nudgeContext, setNudgeContext] = useState(prefs?.primaryCampaignGoal || '');
   const [isDrafting, setIsDrafting] = useState(false);
   const [drafts, setDrafts] = useState<DraftNudge[]>([]);
+  
+  // Simulation Preview State
+  const [showSimulation, setShowSimulation] = useState(false);
+  const [simulationLogs, setSimulationLogs] = useState<string[]>([]);
+  const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0);
   
   // Dispatch Progress & Analytics states
   const [isDispatching, setIsDispatching] = useState(false);
@@ -142,12 +152,57 @@ export default function NudgePage(): React.JSX.Element {
     }
   };
 
+  const [isGeneratingBrief, setIsGeneratingBrief] = useState(false);
+
+  const handleGenerateBrief = async () => {
+    setIsGeneratingBrief(true);
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+      const payload = {
+        segmentSummary: `${selectedCustomers.length} selected customers in the ${selectedCategory === 'all' ? 'retail' : selectedCategory} segment.`,
+        channel: selectedChannel,
+        goal: "Generate a short 1-sentence marketing prompt/brief instructing what the personalized campaign should be about. DO NOT generate the final message. Only return the instruction brief."
+      };
+      
+      const res = await trackedAiFetch(`${backendUrl}/api/ai/draft-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNudgeContext(data.message || data.draft);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsGeneratingBrief(false);
+    }
+  };
+
   // Trigger campaign drafting
   const handleGenerateNudges = async () => {
     if (selectedCustomers.length === 0) return;
     setIsDrafting(true);
+    setShowSimulation(true);
+    setCurrentPreviewIndex(0);
+    setSimulationLogs([
+      '> INITIALIZING NUDGE ENGINE...',
+      `> Target segments selected: ${selectedCustomers.length}`
+    ]);
     setDrafts([]);
     
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+    await delay(1200);
+    setSimulationLogs(prev => [...prev, `> CONNECTING TO ${selectedChannel} MCP ROUTER... [PORT 400${selectedChannel === 'WHATSAPP' ? 1 : selectedChannel === 'SMS' ? 2 : 3}]`]);
+    
+    await delay(800);
+    setSimulationLogs(prev => [...prev, '> ESTABLISHED M2M HANDSHAKE']);
+
+    await delay(1500);
+    setSimulationLogs(prev => [...prev, '> DISPATCHING PROMPT TO GEMINI AI LAYER...', `> Context: ${nudgeContext || 'None'}`, '> WAITING FOR PAYLOAD GENERATION...']);
+
     const selectedList = customers.filter(c => selectedCustomers.includes(c.id));
     const payload = {
       customers: selectedList,
@@ -158,7 +213,7 @@ export default function NudgePage(): React.JSX.Element {
 
     try {
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
-      // Use tracked fetch to log token count in local storage!
+      
       const res = await trackedAiFetch(`${backendUrl}/api/ai/nudge-draft`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -168,12 +223,17 @@ export default function NudgePage(): React.JSX.Element {
       if (res.ok) {
         const data = await res.json();
         setDrafts(data.drafts || []);
+        
+        await delay(500);
+        setSimulationLogs(prev => [...prev, '> RECEIVED 200 OK', `> Generated ${data.drafts?.length || 0} personalized nudges`, '> SIMULATION COMPLETE. READY FOR DISPATCH.']);
       } else {
-        alert('Failed to draft nudges. Check backend API key configuration.');
+        await delay(500);
+        setSimulationLogs(prev => [...prev, '> ERROR 500: Failed to draft nudges.']);
       }
     } catch (err) {
       console.error('Nudge draft error:', err);
-      alert('Network error drafting campaign nudges.');
+      await delay(500);
+      setSimulationLogs(prev => [...prev, '> ERROR: Network error drafting campaign nudges.']);
     } finally {
       setIsDrafting(false);
     }
@@ -454,7 +514,17 @@ export default function NudgePage(): React.JSX.Element {
 
             {/* Custom Context Brief */}
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Campaign Prompt/Brief (Optional)</label>
+              <div className="flex justify-between items-center">
+                 <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Campaign Prompt/Brief (Optional)</label>
+                 <button 
+                   onClick={handleGenerateBrief}
+                   disabled={isGeneratingBrief}
+                   className="text-[10px] font-bold text-purple-500 hover:text-purple-400 flex items-center gap-1.5 transition bg-purple-500/10 px-2 py-1 rounded-md"
+                 >
+                   {isGeneratingBrief ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                   {isGeneratingBrief ? 'Generating...' : 'AI Auto-Fill Brief'}
+                 </button>
+              </div>
               <textarea
                 value={nudgeContext}
                 onChange={e => setNudgeContext(e.target.value)}
@@ -544,8 +614,130 @@ export default function NudgePage(): React.JSX.Element {
             </div>
           )}
 
-          {/* Nudge Drafts and Dispatch Banner */}
-          {drafts.length > 0 && !dispatchAnalytics && !isDispatching && (
+          {/* Nudge Drafts and Dispatch Banner - REPLACED BY SIMULATION */}
+          {showSimulation ? (
+            <div className="fixed inset-0 z-[100] bg-background flex flex-col animate-in fade-in zoom-in-95 duration-300">
+              {/* Studio Header */}
+              <div className="p-6 border-b border-border flex justify-between items-center bg-card shadow-sm shrink-0">
+                <div>
+                  <h1 className="font-bold text-foreground text-2xl flex items-center gap-3">
+                    <Zap className="w-6 h-6 text-purple-500" />
+                    Simulation & Preview Studio
+                  </h1>
+                  <p className="text-sm text-neutral-500 mt-1">Review the AI-generated personalization payloads before mass dispatching to the MCP router.</p>
+                </div>
+                <button onClick={() => setShowSimulation(false)} className="p-2 bg-secondary hover:bg-secondary/80 rounded-full transition">
+                  <X className="w-5 h-5 text-neutral-400" />
+                </button>
+              </div>
+
+              {/* Studio Body */}
+              <div className="flex-1 p-8 bg-neutral-950/5 dark:bg-black/20 overflow-hidden">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-7xl mx-auto h-full">
+                  {/* Left: Terminal Logs */}
+                  <div className="bg-[#0c0c0e] rounded-3xl border border-neutral-800/60 p-6 font-mono text-[13px] overflow-y-auto flex flex-col relative shadow-2xl h-full">
+                    <div className="absolute top-0 inset-x-0 h-10 bg-gradient-to-b from-[#0c0c0e] to-transparent z-10" />
+                    <div className="text-neutral-500 mb-6 border-b border-neutral-800 pb-3 flex gap-2">
+                      <div className="w-3 h-3 rounded-full bg-red-500" />
+                      <div className="w-3 h-3 rounded-full bg-amber-500" />
+                      <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                      <span className="ml-3 text-neutral-600 font-bold tracking-widest text-[10px]">MCP-ROUTER-SIM // tty1</span>
+                    </div>
+                    <div className="flex-1 space-y-2 z-0">
+                      {simulationLogs.map((log, i) => (
+                        <div key={i} className="text-emerald-500 font-medium tracking-wide">
+                          <span className="text-neutral-600 mr-3">{new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' })}</span> 
+                          {log}
+                        </div>
+                      ))}
+                      {isDrafting && <div className="text-emerald-500 animate-pulse mt-2 block">_</div>}
+                    </div>
+                  </div>
+
+                  {/* Right: Mobile Preview */}
+                  <div className="flex justify-center items-center h-full relative">
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-transparent to-emerald-500/5 rounded-3xl" />
+                    <div className="w-[320px] h-[650px] bg-white dark:bg-neutral-900 rounded-[3.5rem] border-[12px] border-neutral-800 relative overflow-hidden shadow-2xl flex flex-col z-10 scale-95 origin-center">
+                      {/* Phone Notch */}
+                      <div className="absolute top-0 inset-x-0 h-7 bg-neutral-800 rounded-b-3xl w-[45%] mx-auto z-20" />
+                      
+                      {/* App UI Header */}
+                      <div className="pt-12 pb-4 px-4 bg-neutral-100 dark:bg-neutral-800/80 flex items-center justify-center border-b border-border shadow-sm">
+                        <span className="text-sm font-bold text-neutral-700 dark:text-neutral-200">
+                          {selectedChannel === 'WHATSAPP' ? 'WhatsApp' : selectedChannel === 'SMS' ? 'Messages' : 'Email'}
+                        </span>
+                      </div>
+
+                      {/* App UI Body */}
+                      <div className="flex-1 p-5 overflow-y-auto bg-neutral-50 dark:bg-black/95 flex flex-col gap-4 relative">
+                        {drafts.length > 0 ? (
+                          <>
+                            <div className="text-[10px] text-center text-neutral-400 font-bold my-2 uppercase tracking-widest">
+                              Today • {new Date().toLocaleTimeString([], { hour: '2-digit', minute:'2-digit' })}
+                            </div>
+                            <div className="bg-neutral-200 dark:bg-neutral-800 rounded-2xl rounded-tl-sm p-4 text-[13px] leading-relaxed text-foreground shadow-sm max-w-[85%] self-start relative border border-border/50">
+                              {drafts[currentPreviewIndex].message}
+                              <div className="absolute -left-2 top-0 w-4 h-4 bg-neutral-200 dark:bg-neutral-800 transform rotate-45 -z-10 border-l border-t border-border/50" />
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-full text-neutral-400 gap-4">
+                            <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+                            <span className="text-sm font-medium animate-pulse">Generating Personalization...</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Navigation Controls overlay */}
+                    {drafts.length > 0 && (
+                      <div className="absolute bottom-6 inset-x-0 flex justify-center items-center gap-6 z-20">
+                         <button 
+                           onClick={() => setCurrentPreviewIndex(Math.max(0, currentPreviewIndex - 1))}
+                           disabled={currentPreviewIndex === 0}
+                           className="p-3 bg-foreground/10 backdrop-blur-xl border border-border/50 rounded-full hover:bg-foreground/20 disabled:opacity-50 transition shadow-lg"
+                         >
+                           <ChevronRight className="w-6 h-6 text-foreground rotate-180" />
+                         </button>
+                         <span className="text-sm font-bold bg-foreground/10 backdrop-blur-xl border border-border/50 px-5 py-2 rounded-full text-foreground shadow-lg">
+                           {currentPreviewIndex + 1} / {drafts.length}
+                         </span>
+                         <button 
+                           onClick={() => setCurrentPreviewIndex(Math.min(drafts.length - 1, currentPreviewIndex + 1))}
+                           disabled={currentPreviewIndex === drafts.length - 1}
+                           className="p-3 bg-foreground/10 backdrop-blur-xl border border-border/50 rounded-full hover:bg-foreground/20 disabled:opacity-50 transition shadow-lg"
+                         >
+                           <ChevronRight className="w-6 h-6 text-foreground" />
+                         </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Studio Footer Controls */}
+              <div className="p-6 border-t border-border bg-card flex justify-between items-center shrink-0">
+                <Button 
+                  variant="outline"
+                  onClick={() => setShowSimulation(false)}
+                  className="px-6 font-bold"
+                >
+                  Exit Preview
+                </Button>
+                <Button 
+                  onClick={() => {
+                     setShowSimulation(false);
+                     handleDispatchNudges();
+                  }}
+                  disabled={isDrafting || drafts.length === 0 || isDispatching}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-8 py-6 text-base rounded-xl flex gap-3 shadow-lg shadow-emerald-500/20"
+                >
+                  <Send className="w-5 h-5" />
+                  Dispatch {drafts.length} Nudges
+                </Button>
+              </div>
+            </div>
+          ) : drafts.length > 0 && !dispatchAnalytics && !isDispatching && (
             <div className="bg-card border border-border p-6 rounded-2xl space-y-4 max-h-[350px] overflow-y-auto relative animate-in fade-in duration-300">
               <h3 className="font-bold text-foreground text-lg border-b border-border pb-3 flex justify-between items-center">
                 <span>Nudge Campaign Drafts</span>
@@ -566,6 +758,13 @@ export default function NudgePage(): React.JSX.Element {
 
               <div className="pt-3 border-t border-border">
                 <button
+                  onClick={() => setShowSimulation(true)}
+                  className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white hover:bg-purple-500 transition py-2.5 rounded-xl font-bold text-sm mb-2"
+                >
+                  <Eye className="w-4 h-4" />
+                  View Simulation & Mobile Preview
+                </button>
+                <button
                   onClick={handleDispatchNudges}
                   disabled={isDispatching}
                   className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white hover:bg-emerald-500 transition py-2.5 rounded-xl font-bold text-sm"
@@ -579,7 +778,7 @@ export default function NudgePage(): React.JSX.Element {
 
           {/* BullMQ Queue Dispatch Progress Banner */}
           {isDispatching && (
-            <div className="bg-card border border-emerald-500/20 p-5 rounded-2xl space-y-3">
+            <div className="bg-card border border-emerald-500/20 p-5 rounded-2xl space-y-3 mt-4">
               <div className="flex justify-between items-center">
                 <h4 className="font-bold text-foreground text-sm flex items-center gap-2">
                   <RefreshCw className="w-4 h-4 text-emerald-500 animate-spin" />
