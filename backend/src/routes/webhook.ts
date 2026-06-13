@@ -23,7 +23,7 @@ const STATUS_PRECEDENCE: Record<string, number> = {
  * Body: { communicationId: string, status: string, errorMsg?: string, timestamp: string }
  */
 router.post(['/receipt', '/channel-callback'], validateWebhookCallback, async (req: Request, res: Response) => {
-  const webhookSecret = process.env.NODE_ENV !== 'test' ? (process.env.WEBHOOK_SECRET || '') : '';
+  const webhookSecret = process.env.NODE_ENV === 'production' ? (process.env.WEBHOOK_SECRET || '') : '';
   if (webhookSecret) {
     const signature = req.headers['x-webhook-signature'] as string;
     if (!signature) {
