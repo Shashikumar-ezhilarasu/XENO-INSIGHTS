@@ -154,6 +154,73 @@ router.get(['/customers', '/crm/customers'], async (req: Request, res: Response)
 });
 
 /**
+ * GET /api/crm/stats
+ * Aggregate dashboard statistics from the live database.
+ */
+router.get(['/stats', '/crm/stats'], async (req: Request, res: Response) => {
+  try {
+    const totalCustomers = await prisma.customer.count();
+    
+    // Aggregations
+    const aggregations = await prisma.customer.aggregate({
+      _sum: {
+        totalSpends: true
+      }
+    });
+    const netSales = aggregations._sum.totalSpends || 0;
+
+    const totalOrders = await prisma.order.count();
+
+    // Repeat Rate
+    // Customers with > 1 order
+    // Since we don't have a direct grouping easily available, we can approximate it or query exactly:
+    const repeatCustomers = await prisma.customer.count({
+      where: {
+        orders: {
+          // Prisma doesn't support 'count > 1' directly in where, but we can do it via a raw query or approximate via spends
+        }
+      }
+    });
+
+    // Actually, let's use a raw query for accurate repeat rate and recency
+    const repeatQuery = await prisma.$queryRaw<[{ count: number }]>`
+      SELECT COUNT(*) as count FROM "Customer" WHERE id IN (
+        SELECT "customerId" FROM "Order" GROUP BY "customerId" HAVING COUNT(*) > 1
+      )
+    `;
+    const repeatCount = Number(repeatQuery[0]?.count || 0);
+    const repeatRate = totalCustomers > 0 ? Math.round((repeatCount / totalCustomers) * 1000) / 10 : 0;
+
+    // Recency Distribution
+    const now = new Date();
+    const daysAgo = (days: number) => new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+    const [recency30, recency60, recency90, recency90Plus] = await prisma.$transaction([
+      prisma.customer.count({ where: { lastVisitDate: { gte: daysAgo(30) } } }),
+      prisma.customer.count({ where: { lastVisitDate: { gte: daysAgo(60), lt: daysAgo(30) } } }),
+      prisma.customer.count({ where: { lastVisitDate: { gte: daysAgo(90), lt: daysAgo(60) } } }),
+      prisma.customer.count({ where: { lastVisitDate: { lt: daysAgo(90) } } }),
+    ]);
+
+    return res.json({
+      totalCustomers,
+      totalOrders,
+      netSales,
+      repeatRate,
+      recencyDistribution: {
+        '0-30': recency30,
+        '31-60': recency60,
+        '61-90': recency90,
+        '90+': recency90Plus
+      }
+    });
+  } catch (error: any) {
+    console.error('Error fetching CRM stats:', error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+/**
  * GET /api/analytics
  * Calculate dynamic delivery, open, click, and fail rates across all campaigns.
  * Evaluates A/B testing splits.

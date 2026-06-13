@@ -1068,27 +1068,33 @@ export default function OverviewPage() {
   useEffect(() => {
     async function loadDashboardStats() {
       if (!isOnboarded) return;
-      if (!isOnboarded) return;
-      // Simulation mode for category-specific stats
-      const isCoffee = brandCategoryState === 'coffee_cafe' || businessIndustry === 'Coffee & Cafe';
-      const isJewelry = brandCategoryState === 'jewelry_accessories';
-      const isBeauty = brandCategoryState === 'beauty_cosmetics';
-
-      setDashboardStats({
-        totalCustomers: isCoffee ? 4500 : isJewelry ? 850 : isBeauty ? 3200 : 2600,
-        totalOrders: isCoffee ? 26600 : isJewelry ? 1200 : isBeauty ? 5400 : 8500,
-        netSales: isCoffee ? 1200000 : isJewelry ? 2800000 : isBeauty ? 850000 : 1800000,
-        repeatRate: isCoffee ? 68.5 : isJewelry ? 18.2 : isBeauty ? 42.1 : 45.2,
-        recencyDistribution: { 
-          '0-30': isCoffee ? 2100 : 200, 
-          '31-60': isCoffee ? 800 : 150, 
-          '61-90': isCoffee ? 400 : 100, 
-          '90+': isCoffee ? 1200 : 400 
-        },
-        funnel: { sent: 10000, delivered: 9800, opened: 5400, clicked: 1200, failed: 200, deliveredPercent: 98, openedPercent: 54, failedPercent: 2 },
-        orderFrequencySeries: isCoffee ? [200, 250, 220, 280, 400, 450, 200] : [10, 15, 12, 18, 25, 30, 15]
-      });
-      setDashboardLoading(false);
+      try {
+        const token = localStorage.getItem('xeno_auth_token');
+        const res = await fetch(`${BACKEND_URL}/api/crm/stats`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const stats = await res.json();
+          setDashboardStats({
+            totalCustomers: stats.totalCustomers || 2600,
+            totalOrders: stats.totalOrders || 8500,
+            netSales: stats.netSales || 1800000,
+            repeatRate: stats.repeatRate || 45.2,
+            recencyDistribution: stats.recencyDistribution || { 
+              '0-30': 2100, 
+              '31-60': 800, 
+              '61-90': 400, 
+              '90+': 1200 
+            },
+            funnel: { sent: 10000, delivered: 9800, opened: 5400, clicked: 1200, failed: 200, deliveredPercent: 98, openedPercent: 54, failedPercent: 2 },
+            orderFrequencySeries: [200, 250, 220, 280, 400, 450, 200]
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load dashboard stats', err);
+      } finally {
+        setDashboardLoading(false);
+      }
     }
     loadDashboardStats();
   }, [isOnboarded]);
@@ -1385,11 +1391,16 @@ export default function OverviewPage() {
           <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground to-neutral-500 bg-clip-text text-transparent font-sans flex items-center gap-2">
             <span>{tenant?.brandName || businessName || 'Brand'} {t('dashboard_overview')}</span>
             <Badge className="bg-purple-600/10 text-purple-600 dark:text-purple-400 border-none font-semibold text-[10px] py-1 px-2.5 rounded-full select-none">
-              {tenant?.brandCategory || businessIndustry || 'Retail'}
+              {brandCategory === 'coffee_cafe' ? 'Coffee & Cafe' :
+               brandCategory === 'food_beverage' ? 'Food & Beverage' :
+               brandCategory === 'fashion_apparel' ? 'Fashion & Apparel' :
+               brandCategory === 'beauty_cosmetics' ? 'Beauty & Cosmetics' :
+               brandCategory === 'jewelry_accessories' ? 'Jewelry & Accessories' :
+               'Retail & E-commerce'}
             </Badge>
           </h1>
           <p className="text-sm text-neutral-500 max-w-xl font-medium">
-            Welcome back, {tenant?.brandName || 'Admin'}! {CATEGORY_DEFAULTS[brandCategory]?.overviewWelcome || t('welcome_back')}
+            Welcome back, {tenant?.email ? tenant.email.split('@')[0] : 'Admin'}! {CATEGORY_DEFAULTS[brandCategory]?.overviewWelcome || t('welcome_back')}
           </p>
         </div>
         
