@@ -98,8 +98,11 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 // Start Express server and verify DB connectivity
 if (process.env.NODE_ENV !== 'test') {
   initCron();
-  // FUTURE ENHANCEMENT: Enable when queue infrastructure is active
-  // startAllWorkers();
+  import('./workers/outboundWorker').then(() => {
+    console.log('[Worker] Outbound worker started.');
+  }).catch(err => {
+    console.error('[Worker] Failed to start outbound worker:', err);
+  });
   app.listen(Number(PORT), '0.0.0.0', async () => {
     console.log(`========================================`);
     console.log(`CRM Backend Server running on port ${PORT}`);

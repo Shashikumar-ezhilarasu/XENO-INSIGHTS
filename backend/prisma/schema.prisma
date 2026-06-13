@@ -73,14 +73,17 @@ model Communication {
   campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   channel    String?  // The specific channel used (e.g. WHATSAPP, EMAIL)
   status     String   // "PENDING" | "SENT" | "DELIVERED" | "OPENED" | "CLICKED" | "FAILED"
+  statusLevel Int     @default(0) // Logical precedence for optimistic concurrency
   variant    String   @default("A") // A/B testing variant: "A" or "B"
   errorMsg   String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+  events     CommunicationEvent[]
 
   @@index([customerId])
   @@index([campaignId])
   @@index([status])
+  @@index([campaignId, status]) // Composite index for fast dashboard aggregations
 }
 
 model Trigger {
@@ -114,4 +117,15 @@ model LifecycleJourney {
   isActive  Boolean  @default(true)
   steps     Json     // Array of nodes representing execution milestones, delays, and channel triggers
   createdAt DateTime @default(now())
+}
+
+model CommunicationEvent {
+  id               String        @id @default(uuid())
+  communicationId  String
+  communication    Communication @relation(fields: [communicationId], references: [id], onDelete: Cascade)
+  status           String
+  providerPayload  Json?
+  createdAt        DateTime      @default(now())
+
+  @@index([communicationId])
 }

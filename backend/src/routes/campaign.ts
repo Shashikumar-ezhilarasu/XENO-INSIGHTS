@@ -1,3 +1,12 @@
+/**
+ * @file campaign.ts
+ * @description
+ * Core Express router for Campaign generation and dispatch.
+ * Includes:
+ * 1. AI-driven Natural Language to SQL/Prisma audience segmentation (via Gemini).
+ * 2. Campaign dispatch to BullMQ (`/send` endpoint) pushing high-volume
+ *    recipient IDs into the async outbound queue.
+ */
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import prisma from '../config/prisma';
@@ -126,6 +135,32 @@ async function resolveCustomerSegment(promptText: string): Promise<string[]> {
 
   return customers.map(c => c.id);
 }
+
+/**
+ * GET /api/campaigns/events
+ * Returns the most recent 50 communication events for the live simulator.
+ */
+router.get('/events', async (req: Request, res: Response) => {
+  try {
+    const events = await prisma.communicationEvent.findMany({
+      take: 50,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        communication: {
+          select: {
+            channel: true,
+            campaign: { select: { name: true } },
+            customer: { select: { name: true, phone: true, email: true } }
+          }
+        }
+      }
+    });
+    return res.status(200).json({ success: true, events });
+  } catch (error: any) {
+    console.error('Error fetching campaign events:', error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
 
 /**
  * POST /api/campaigns/create
@@ -277,69 +312,71 @@ router.post('/send', campaignSendRateLimiter, validateCampaignSend, async (req: 
     ]);
 
     if (process.env.NODE_ENV !== 'test') {
-      communicationRecords.forEach(async (record) => {
+      const { campaignDispatchQueue } = require('../config/queue');
+
+      const jobsToEnqueue = communicationRecords.map((record) => {
         const customer = customerMap.get(record.customerId);
-        if (!customer) return;
+        if (!customer) return null;
 
-        try {
-          const latestOrder = customer.orders && customer.orders.length > 0 ? customer.orders[0] : null;
-          const lastPurchasedItem = latestOrder ? latestOrder.category : 'special item';
-          
-          const categoryCounts: Record<string, number> = {};
-          customer.orders.forEach(o => {
-            categoryCounts[o.category] = (categoryCounts[o.category] || 0) + 1;
-          });
-          
-          let favoriteCategory = 'our products';
-          let maxCount = 0;
-          Object.entries(categoryCounts).forEach(([cat, count]) => {
-            if (count > maxCount) {
-              maxCount = count;
-              favoriteCategory = cat;
-            }
-          });
-
-          const loyaltyPoints = customer.loyaltyPoints;
-
-          const baseTemplate = (record.variant === 'B' && campaign.messageTemplateB)
-            ? campaign.messageTemplateB
-            : (campaign.messageTemplate || '');
-
-          const personalizedMessage = baseTemplate
-            .replace(/\{\{\s*name\s*\}\}/gi, customer.name)
-            .replace(/\{\{\s*last_purchased_item\s*\}\}/gi, lastPurchasedItem)
-            .replace(/\{\{\s*favorite_category\s*\}\}/gi, favoriteCategory)
-            .replace(/\{\{\s*total_loyalty_points\s*\}\}/gi, String(loyaltyPoints));
-
-          let buttonsArray = undefined;
-          if (campaign.buttons) {
-            try {
-              buttonsArray = JSON.parse(campaign.buttons);
-            } catch (e) {
-              buttonsArray = campaign.buttons.split(',').map(b => b.trim());
-            }
+        const latestOrder = customer.orders && customer.orders.length > 0 ? customer.orders[0] : null;
+        const lastPurchasedItem = latestOrder ? latestOrder.category : 'special item';
+        
+        const categoryCounts: Record<string, number> = {};
+        customer.orders.forEach(o => {
+          categoryCounts[o.category] = (categoryCounts[o.category] || 0) + 1;
+        });
+        
+        let favoriteCategory = 'our products';
+        let maxCount = 0;
+        Object.entries(categoryCounts).forEach(([cat, count]) => {
+          if (count > maxCount) {
+            maxCount = count;
+            favoriteCategory = cat;
           }
+        });
 
-          // Build the callback URL using the public CRM URL
-          const crmCallbackUrl = `${process.env.CRM_PUBLIC_URL || 'http://localhost:3000'}/api/webhooks/receipt`;
+        const loyaltyPoints = customer.loyaltyPoints;
 
-          // Fire and forget — non-blocking, MCP client handles async
-          sendViaChannel({
-            recipient_id: customer.id,
-            recipient_phone: customer.phone || '',
-            recipient_email: customer.email || '',
-            message: personalizedMessage,
-            channel: (record.channel || campaign.channel).toLowerCase() as any,
-            campaign_id: campaign.id,
-            communication_id: record.id,
-            crm_callback_url: crmCallbackUrl,
-          }).catch(err => {
-            console.error(`[Campaign Dispatch] MCP send failed for ${record.id}:`, err.message);
-          });
-        } catch (enqueueError: any) {
-          console.error(`[Campaign Engine] Failed to dispatch for communication ${record.id}:`, enqueueError.message);
-        }
-      });
+        const baseTemplate = (record.variant === 'B' && campaign.messageTemplateB)
+          ? campaign.messageTemplateB
+          : (campaign.messageTemplate || '');
+
+        const personalizedMessage = baseTemplate
+          .replace(/\{\{\s*name\s*\}\}/gi, customer.name)
+          .replace(/\{\{\s*last_purchased_item\s*\}\}/gi, lastPurchasedItem)
+          .replace(/\{\{\s*favorite_category\s*\}\}/gi, favoriteCategory)
+          .replace(/\{\{\s*total_loyalty_points\s*\}\}/gi, String(loyaltyPoints));
+
+        const crmCallbackUrl = `${process.env.CRM_PUBLIC_URL || 'http://localhost:3000'}/api/webhooks/receipt`;
+
+        return {
+          name: `dispatch-${record.id}`,
+          data: {
+            recordId: record.id,
+            payload: {
+              recipient_id: customer.id,
+              recipient_phone: customer.phone || '',
+              recipient_email: customer.email || '',
+              message: personalizedMessage,
+              channel: (record.channel || campaign.channel).toLowerCase() as any,
+              campaign_id: campaign.id,
+              communication_id: record.id,
+              crm_callback_url: crmCallbackUrl,
+            }
+          },
+          opts: {
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 2000 }
+          }
+        };
+      }).filter(Boolean);
+
+      try {
+        await campaignDispatchQueue.addBulk(jobsToEnqueue);
+        console.log(`[Campaign Engine] Enqueued ${jobsToEnqueue.length} communications to outbound worker.`);
+      } catch (enqueueError: any) {
+        console.error(`[Campaign Engine] Failed to enqueue batch for campaign ${campaign.id}:`, enqueueError.message);
+      }
     }
 
     return res.status(202).json({
