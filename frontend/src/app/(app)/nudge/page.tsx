@@ -82,7 +82,7 @@ export default function NudgePage(): React.JSX.Element {
   const fetchCustomers = async () => {
     setIsLoadingCustomers(true);
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
       // Fetch up to 100 targets
       const res = await fetch(`${backendUrl}/api/customers?limit=100`);
       if (res.ok) {
@@ -157,7 +157,7 @@ export default function NudgePage(): React.JSX.Element {
     };
 
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
       // Use tracked fetch to log token count in local storage!
       const res = await trackedAiFetch(`${backendUrl}/api/ai/nudge-draft`, {
         method: 'POST',
@@ -195,7 +195,7 @@ export default function NudgePage(): React.JSX.Element {
     };
 
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
       const res = await fetch(`${backendUrl}/api/queue/nudge-send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -230,7 +230,7 @@ export default function NudgePage(): React.JSX.Element {
 
   // Poll individual job statuses sequentially to calculate real-time completion percentage
   const monitorQueueProgress = (jobIds: string[]) => {
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
     const total = jobIds.length;
     let completedCount = 0;
     let attempts = 0;

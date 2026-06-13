@@ -41,7 +41,7 @@ export function QueueProvider({ children }: { children: React.ReactNode }): Reac
 
   const fetchStats = async () => {
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
       const res = await fetch(`${backendUrl}/api/queue/stats`);
       if (res.ok) {
         const data = await res.json();

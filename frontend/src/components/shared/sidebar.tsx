@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Send, BarChart2, Trophy, UserCircle2, Bot, Zap } from 'lucide-react';
+import { LayoutDashboard, Send, BarChart2, Trophy, UserCircle2, Bot, Zap, Settings } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useQueue } from '../../lib/queueContext';
 
@@ -14,11 +14,12 @@ export default function Sidebar() {
   const navItems = [
     { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Campaign Manager', href: '/campaigns', icon: Send },
+    { name: 'Nudge Engine', href: '/nudge', icon: Zap },
     { name: 'Gamification Studio', href: '/gamification', icon: Trophy },
     { name: 'Analytics Monitor', href: '/analytics', icon: BarChart2 },
-    { name: 'AI Marketplace', href: '/ai-usage', icon: Bot, pulse: true },
-    { name: 'Nudge Engine', href: '/nudge', icon: Zap },
+    { name: 'AI Usage and Tokens', href: '/ai-usage', icon: Bot, pulse: true },
     { name: 'Team Members', href: '/team', icon: UserCircle2 },
+    { name: 'Settings', href: '#', icon: Settings },
   ];
 
   return (
