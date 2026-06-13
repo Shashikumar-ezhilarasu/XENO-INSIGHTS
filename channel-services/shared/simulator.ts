@@ -114,21 +114,21 @@ async function fireCallbackWithRetry(
   attempt = 1
 ): Promise<void> {
   try {
-    const response = await fetch(url, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    console.log(`[${payload.provider}] Callback fired: ${payload.status} for ${payload.communication_id}`);
-  } catch (err) {
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    console.log(`[${payload.provider}] ✓ Callback ${payload.status} → ${payload.communication_id}`);
+  } catch (err: any) {
     if (attempt <= 3) {
       const backoff = Math.pow(2, attempt) * 1000;
-      console.warn(`[${payload.provider}] Callback attempt ${attempt} failed, retrying in ${backoff}ms`);
-      await delay(backoff);
+      console.warn(`[${payload.provider}] Retry ${attempt}/3 in ${backoff}ms for ${payload.communication_id}`);
+      await new Promise(r => setTimeout(r, backoff));
       return fireCallbackWithRetry(url, payload, attempt + 1);
     }
-    console.error(`[${payload.provider}] All callback retries exhausted for ${payload.communication_id}`);
+    console.error(`[${payload.provider}] ✗ All retries failed for ${payload.communication_id}: ${err.message}`);
   }
 }
 

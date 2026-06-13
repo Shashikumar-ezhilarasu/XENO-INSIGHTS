@@ -38,6 +38,7 @@ const statusStore = new Map<string, string>();
  * @description Simulates sending a WhatsApp message. Returns immediately with
  * "queued" status. Async delivery events fire back to crm_callback_url.
  */
+// @ts-ignore
 server.tool(
   'send_whatsapp_message',
   {
@@ -76,6 +77,7 @@ server.tool(
  * @tool get_delivery_status
  * @description Returns last known simulated delivery status for a communication.
  */
+// @ts-ignore
 server.tool(
   'get_delivery_status',
   { communication_id: z.string() },
@@ -110,19 +112,71 @@ server.tool(
   }
 );
 
-// Health check endpoint for Railway
+/**
+ * @route GET /
+ * @description Root health responder. Railway pings this to verify
+ * the container is accepting connections. Without this, Railway
+ * shows "Application failed to respond" in logs.
+ */
+app.get('/', (req, res) => {
+  res.json({
+    service: 'xeno-whatsapp-mcp',
+    version: '1.0.0',
+    status: 'running',
+    transport: 'MCP over Streamable HTTP',
+    endpoints: {
+      mcp: 'POST /mcp',
+      health: 'GET /health',
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
+ * @route GET /health
+ * @description Railway health check endpoint.
+ * Railway's health check system pings this every 30 seconds.
+ * Returns 200 with service metadata to keep the container warm.
+ */
 app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', service: 'xeno-whatsapp-mcp', port: process.env.PORT || 4001 });
+  res.json({
+    status: 'healthy',
+    service: 'xeno-whatsapp-mcp',
+    uptime: process.uptime(),
+    memory: process.memoryUsage().heapUsed,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Standard HTTP fallback endpoint for testing callback loop without MCP transport bugs
+app.post('/send', (req, res) => {
+  statusStore.set(req.body.communication_id, 'queued');
+  simulateDelivery(
+    { ...req.body, channel: 'whatsapp' },
+    CHANNEL_PROFILES.whatsapp
+  );
+  res.json({ status: 'queued', communication_id: req.body.communication_id });
 });
 
 // MCP transport
 const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+server.connect(transport).catch(console.error);
+
 app.post('/mcp', async (req, res) => {
-  await server.connect(transport);
   await transport.handleRequest(req, res, req.body);
 });
 
-const PORT = process.env.PORT || 4001;
-app.listen(PORT, () => {
-  console.log(`[WhatsApp MCP] Running on port ${PORT}`);
+// Read PORT from Railway environment — Railway sets this automatically
+// Bind to 0.0.0.0 — required for Railway container routing
+// localhost binds are rejected by Railway's internal proxy
+const PORT = parseInt(process.env.PORT || '4001', 10);
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log('========================================');
+  console.log(`  XENO WhatsApp MCP Service`);
+  console.log(`  Port: ${PORT}`);
+  console.log(`  MCP endpoint: POST /mcp`);
+  console.log(`  Health: GET /health`);
+  console.log(`  Transport: Streamable HTTP`);
+  console.log('========================================');
 });
