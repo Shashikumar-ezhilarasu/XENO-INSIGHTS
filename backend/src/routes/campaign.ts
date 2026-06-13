@@ -5,6 +5,7 @@ import prisma from '../config/prisma';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { validateSqlQuery, validatePrismaWhere } from '../utils/queryValidator';
 import { validateCampaignCreate, validateCampaignSend, campaignSendRateLimiter } from '../middleware/security';
+import { sendViaChannel } from '../config/channelMcpClient';
 
 const router = Router();
 
@@ -302,67 +303,22 @@ router.post('/send', campaignSendRateLimiter, validateCampaignSend, async (req: 
             }
           }
 
-          // FUTURE ENHANCEMENT: Queue-based dispatch
-          // When queue infrastructure is re-enabled, replace the setTimeout
-          // below with this enqueue call:
-          //
-          // await campaignDispatchQueue.add(`dispatch-${record.id}`, {
-          //   communicationId: record.id,
-          //   recipientPhone: customer.phone,
-          //   recipientEmail: customer.email,
-          //   recipientName: customer.name,
-          //   message: personalizedMessage,
-          //   channel: record.channel || campaign.channel,
-          //   imageUrl: campaign.imageUrl || undefined,
-          //   buttons: buttonsArray
-          // });
+          // Build the callback URL using the public CRM URL
+          const crmCallbackUrl = `${process.env.CRM_PUBLIC_URL || 'http://localhost:3000'}/api/webhooks/receipt`;
 
-          // Current implementation: direct async dispatch
-          setTimeout(async () => {
-            try {
-              const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`;
-              const channelServiceUrl = `${backendUrl}/api/channel/send`;
-              
-              const response = await fetch(channelServiceUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  communicationId: record.id,
-                  recipient: {
-                    name: customer.name,
-                    phone: customer.phone,
-                    email: customer.email
-                  },
-                  channel: record.channel || campaign.channel,
-                  message: personalizedMessage,
-                  imageUrl: campaign.imageUrl || undefined,
-                  buttons: buttonsArray
-                })
-              });
-
-              if (response.ok) {
-                await prisma.communication.update({
-                  where: { id: record.id },
-                  data: { status: 'SENT' }
-                });
-              } else {
-                await prisma.communication.update({
-                  where: { id: record.id },
-                  data: { status: 'FAILED', errorMsg: `Channel dispatch returned status ${response.status}` }
-                });
-              }
-            } catch (err: any) {
-              console.error(`[Campaign Engine] Failed to dispatch communication ${record.id}:`, err.message);
-              try {
-                await prisma.communication.update({
-                  where: { id: record.id },
-                  data: { status: 'FAILED', errorMsg: err.message }
-                });
-              } catch (dbErr) {
-                // ignore
-              }
-            }
-          }, 0);
+          // Fire and forget — non-blocking, MCP client handles async
+          sendViaChannel({
+            recipient_id: customer.id,
+            recipient_phone: customer.phone || '',
+            recipient_email: customer.email || '',
+            message: personalizedMessage,
+            channel: (record.channel || campaign.channel).toLowerCase() as any,
+            campaign_id: campaign.id,
+            communication_id: record.id,
+            crm_callback_url: crmCallbackUrl,
+          }).catch(err => {
+            console.error(`[Campaign Dispatch] MCP send failed for ${record.id}:`, err.message);
+          });
         } catch (enqueueError: any) {
           console.error(`[Campaign Engine] Failed to dispatch for communication ${record.id}:`, enqueueError.message);
         }
