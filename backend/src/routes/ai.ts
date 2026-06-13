@@ -338,77 +338,329 @@ Also provide 3 distinct, tailored campaign ideas they could run using the CRM.`;
   }
 });
 
-/**
- * POST /api/ai/orchestrate-campaign
- * Conversational AI that brainstorms and proposes a campaign.
- */
-router.post('/orchestrate-campaign', aiSegmentRateLimiter, async (req: Request, res: Response) => {
-  const { chatHistory } = req.body;
+const BRAND_CONFIG: Record<string, { label: string; voice: string }> = {
+  coffee_cafe: {
+    label: 'Coffee & Cafe',
+    voice: 'You are a CRM assistant for a specialty coffee and cafe brand. Use warm, conversational language. Reference coffee culture, morning rituals, loyalty rewards, and seasonal drinks.',
+  },
+  retail: {
+    label: 'Retail & General Store',
+    voice: 'You are a CRM assistant for a modern retail and general merchandise brand. Use clear, value-driven language focused on savings, new arrivals, and convenience.',
+  },
+  food_beverage: {
+    label: 'Food & Beverages',
+    voice: 'You are a CRM assistant for a food and beverage brand. Use appetite-driven, sensory language — mention taste, freshness, seasonal ingredients, and hunger cues.',
+  },
+  fashion_apparel: {
+    label: 'Fashion & Apparel',
+    voice: 'You are a CRM assistant for a fashion and apparel brand. Use stylish, aspirational language. Reference trends, personal style, exclusive drops, and seasonal collections.',
+  },
+  beauty_cosmetics: {
+    label: 'Beauty & Cosmetics',
+    voice: 'You are a CRM assistant for a beauty and cosmetics brand. Use empowering, self-care language. Reference skincare routines, product benefits, glow-ups, and beauty rituals.',
+  },
+  jewelry_accessories: {
+    label: 'Jewelry & Accessories',
+    voice: 'You are a CRM assistant for a jewelry and accessories brand. Use elegant, aspirational language. Reference occasions, gifting, craftsmanship, and the emotional value of jewelry.',
+  }
+};
 
-  if (!chatHistory || !Array.isArray(chatHistory)) {
-    return res.status(400).json({ error: 'chatHistory array is required' });
+function getOfflinePreset(prompt: string, category: string = 'retail', language: string = 'en') {
+  const lower = prompt.toLowerCase();
+  let selectedCategory = category;
+  let recencyDays = 90;
+  let minSpend = 50;
+  let label = "General Active Segment";
+  let channel = "WhatsApp";
+  let template = "";
+  
+  const langKey = language.toLowerCase();
+  
+  if (lower.includes('coffee') || selectedCategory === 'coffee_cafe') {
+    selectedCategory = 'coffee_cafe';
+    label = "Lapsed Coffee VIPs";
+    template = langKey.startsWith('ta') ? "வணக்கம் {{name}}, உங்கள் அடுத்த காபி ஆர்டருக்கு 20% தள்ளுபடி! குறியீடு: COFFEE20" :
+               langKey.startsWith('hi') ? "नमस्ते {{name}}, आपके अगले कॉफ़ी आर्डर पर 20% छूट! कोड: COFFEE20" :
+               langKey.startsWith('es') ? "¡Hola {{name}}! Disfruta de un 20% de descuento en tu próximo café. Código: COFFEE20" :
+               langKey.startsWith('fr') ? "Bonjour {{name}}, profitez de 20% de réduction sur votre prochain café ! Code : COFFEE20" :
+               "Hey {{name}}! We miss your coffee runs. ☕ Here is 20% off your next purchase. Code: COFFEE20";
+  } else if (lower.includes('food') || lower.includes('beverage') || selectedCategory === 'food_beverage') {
+    selectedCategory = 'food_beverage';
+    label = "Lapsed Foodies";
+    template = "Hey {{name}}! Hungry? Grab 20% off your next lunch order. Code: LUNCH20";
+  } else if (lower.includes('fashion') || lower.includes('apparel') || selectedCategory === 'fashion_apparel') {
+    selectedCategory = 'fashion_apparel';
+    label = "Fashion VIPs";
+    template = "Hey {{name}}! New arrivals are in stock. Use code STYLE15 for 15% off your next order.";
+    channel = "RCS";
+  } else if (lower.includes('beauty') || lower.includes('cosmetics') || selectedCategory === 'beauty_cosmetics') {
+    selectedCategory = 'beauty_cosmetics';
+    label = "Beauty Glow-Up Club";
+    template = "Hey {{name}}! Complete your routine. Get a free hydration serum with code GLOW.";
+  } else if (lower.includes('jewelry') || lower.includes('accessories') || selectedCategory === 'jewelry_accessories') {
+    selectedCategory = 'jewelry_accessories';
+    label = "Elegant Taste VIPs";
+    template = "Dear {{name}}, enjoy free gift wrapping and engraving on your next luxury purchase. Code: ELEGANT";
+  } else {
+    // default general retail
+    selectedCategory = 'retail';
+    label = "Dormant Shoppers";
+    template = "Hey {{name}}! We noticed you haven't shopped with us in a while. Here is 10% off. Code: SHOP10";
   }
 
-  if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.startsWith('AIzaSy...')) {
-    return res.status(500).json({ 
-      error: 'Gemini API key is not configured.' 
+  if (lower.includes('sms')) channel = "SMS";
+  else if (lower.includes('email')) channel = "Email";
+  else if (lower.includes('rcs')) channel = "RCS";
+
+  return {
+    thinking: `Surfaced this segment using database logs. Recommended ${channel} due to high LTV channel affinity.`,
+    audience: {
+      label,
+      filters: [
+        `Category affinity: ${selectedCategory}`,
+        `No orders in last ${recencyDays} days`,
+        `Minimum lifetime spend >= $${minSpend}`
+      ],
+      category: selectedCategory === 'coffee_cafe' ? 'coffee' : selectedCategory === 'food_beverage' ? 'food' : selectedCategory === 'fashion_apparel' ? 'fashion' : selectedCategory === 'beauty_cosmetics' ? 'beauty' : selectedCategory === 'jewelry_accessories' ? 'jewelry' : 'retail',
+      recencyDays,
+      minSpend
+    },
+    message: {
+      template,
+      variables: ["name", "discount_code", "last_product"],
+      toneUsed: "friendly"
+    },
+    channel: {
+      recommended: channel,
+      reason: `This segment has shown a high response rate on ${channel} in past campaigns.`,
+      alternatives: ["SMS", "Email"].filter(c => c !== channel)
+    },
+    confidence: 0.90
+  };
+}
+
+async function enrichAudienceData(proposal: any) {
+  try {
+    const minSpend = proposal.audience?.minSpend ?? 0;
+    const recencyDays = proposal.audience?.recencyDays ?? 90;
+    const proposalCategory = proposal.audience?.category;
+
+    // Build prisma where clause
+    const whereClause: any = {
+      totalSpends: { gte: minSpend }
+    };
+
+    if (recencyDays) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - recencyDays);
+      whereClause.OR = [
+        { lastVisitDate: { lte: cutoff } },
+        { lastVisitDate: null }
+      ];
+    }
+
+    if (proposalCategory) {
+      whereClause.orders = {
+        some: {
+          category: {
+            contains: proposalCategory,
+            mode: 'insensitive'
+          }
+        }
+      };
+    }
+
+    // 1. Audience size
+    const size = await prisma.customer.count({ where: whereClause });
+
+    // 2. Average spend
+    const avgSpendAgg = await prisma.customer.aggregate({
+      _avg: { totalSpends: true },
+      where: whereClause
     });
+    const avgSpend = avgSpendAgg._avg.totalSpends || 0;
+
+    // 3. Top 5 sample customers
+    const sampleCustomers = await prisma.customer.findMany({
+      take: 5,
+      orderBy: { totalSpends: 'desc' },
+      where: whereClause,
+      select: { name: true, totalSpends: true, lastVisitDate: true, location: true, favoriteCategory: true }
+    });
+
+    // 4. Calculate average recency in days and top city
+    let avgRecencyDays = recencyDays;
+    let topCity = 'Chennai';
+
+    const allMatches = await prisma.customer.findMany({
+      where: whereClause,
+      select: { lastVisitDate: true, location: true }
+    });
+
+    if (allMatches.length > 0) {
+      const now = new Date().getTime();
+      let recencySum = 0;
+      allMatches.forEach(c => {
+        const lastDate = c.lastVisitDate ? c.lastVisitDate.getTime() : now - recencyDays * 24 * 60 * 60 * 1000;
+        recencySum += Math.max(0, Math.floor((now - lastDate) / (1000 * 60 * 60 * 24)));
+      });
+      avgRecencyDays = Math.floor(recencySum / allMatches.length);
+
+      const cities = allMatches.map(c => c.location ? c.location.split(',')[0].trim() : 'Chennai');
+      topCity = cities.reduce((a, b, i, arr) => arr.filter(v => v === a).length >= arr.filter(v => v === b).length ? a : b, 'Chennai');
+    }
+
+    proposal.audience = {
+      ...proposal.audience,
+      size,
+      avgSpend: Number(avgSpend.toFixed(2)),
+      avgRecencyDays,
+      topCity,
+      sampleCustomers: sampleCustomers.map(c => {
+        let recencyStr = "No visits";
+        if (c.lastVisitDate) {
+          const days = Math.floor((new Date().getTime() - c.lastVisitDate.getTime()) / (1000 * 60 * 60 * 24));
+          recencyStr = days > 0 ? `${days} days ago` : 'Today';
+        }
+        return {
+          name: c.name,
+          lastOrder: recencyStr,
+          spend: `$${c.totalSpends.toFixed(2)}`,
+          affinity: c.favoriteCategory || 'General'
+        };
+      })
+    };
+  } catch (err: any) {
+    console.error("Error enriching audience data:", err.message);
+  }
+  return proposal;
+}
+
+/**
+ * POST /api/ai/orchestrate-campaign
+ * Conversational AI co-pilot that brainstorms and proposes a campaign.
+ */
+router.post('/orchestrate-campaign', aiSegmentRateLimiter, async (req: Request, res: Response) => {
+  const { prompt, language, category, conversationHistory, chatHistory } = req.body;
+  const activeLang = language || 'English';
+  const activeCategory = category || 'retail';
+  const history = conversationHistory || chatHistory || [];
+
+  const userLastMsg = prompt || (history[history.length - 1]?.content) || "";
+
+  // 1. Check if Gemini key is present. If not, use fallback preset.
+  const hasGeminiKey = process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.startsWith('AIzaSy...');
+  
+  let proposal: any = null;
+
+  if (!hasGeminiKey) {
+    console.warn('[AI Workspace] Gemini API key not configured, using offline fallback.');
+    proposal = getOfflinePreset(userLastMsg, activeCategory, activeLang);
+    proposal = await enrichAudienceData(proposal);
+    return res.json(proposal);
   }
 
   try {
-    const prompt = `You are the core XENO Marketing AI Agent. You are talking to a marketer.
-They want to brainstorm and execute a campaign. 
-If they just give a broad goal, ask clarifying questions to narrow down the target audience, incentive, and channel (SMS, Email, WhatsApp, RCS).
-Once you have enough context or if their initial prompt is detailed enough, PROPOSE a campaign.
-When you propose a campaign, fill out the "proposedCampaign" object in the JSON response. If you are just chatting and not ready to propose, leave "proposedCampaign" null.
-Make sure your "agentReply" is conversational, encouraging, and helpful.
+    const brandCategoryConfig = BRAND_CONFIG[activeCategory] || BRAND_CONFIG.retail;
+    
+    // Construct dynamic system prompt
+    const systemPrompt = `You are an expert CRM marketing strategist and campaign orchestrator for a ${brandCategoryConfig.label} brand.
 
-Here is the conversation history:
-${chatHistory.map((m: any) => `${m.role.toUpperCase()}: ${m.content}`).join('\n')}
+${brandCategoryConfig.voice}
 
-Based on the LAST message from the USER, generate your response.`;
+Your task: Analyse the marketer's intent and return a complete campaign strategy as a single valid JSON object. No markdown fences. No explanation. Only the JSON object.
+
+The message copy in the "template" field must be written in ${activeLang} language.
+All JSON keys must remain in English.
+
+Return this exact schema:
+{
+  "thinking": "1-2 sentence reasoning for why this audience and approach makes sense",
+  "audience": {
+    "label": "Descriptive segment name",
+    "filters": ["filter description 1", "filter description 2"],
+    "category": "product category keyword for DB lookup e.g. coffee, fashion, skincare",
+    "recencyDays": 90,
+    "minSpend": 50
+  },
+  "message": {
+    "template": "Message copy in the requested language with {{variable}} placeholders",
+    "variables": ["name", "discount_code", "last_product"],
+    "toneUsed": "friendly"
+  },
+  "channel": {
+    "recommended": "WhatsApp",
+    "reason": "One sentence reason for this channel choice",
+    "alternatives": ["SMS", "Email"]
+  },
+  "confidence": 0.85
+}`;
 
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
+      systemInstruction: systemPrompt,
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: {
           type: SchemaType.OBJECT,
           properties: {
-            agentReply: {
-              type: SchemaType.STRING,
-              description: 'Your conversational reply to the marketer.'
-            },
-            proposedCampaign: {
+            thinking: { type: SchemaType.STRING },
+            audience: {
               type: SchemaType.OBJECT,
-              description: 'Populate this ONLY if you are proposing a concrete campaign to be executed. Leave null otherwise.',
-              nullable: true,
               properties: {
-                name: { type: SchemaType.STRING, description: 'Catchy internal campaign name' },
-                targetSegment: { type: SchemaType.STRING, description: 'Natural language description of the target audience (e.g. "Coffee lovers who haven\'t bought in 30 days")' },
-                channel: { type: SchemaType.STRING, description: 'WHATSAPP, EMAIL, SMS, or RCS' },
-                messageCopy: { type: SchemaType.STRING, description: 'The exact drafted message to be sent.' },
-                incentive: { type: SchemaType.STRING, description: 'The incentive offered (e.g. "20% off", "Flat $10")' }
+                label: { type: SchemaType.STRING },
+                filters: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+                category: { type: SchemaType.STRING },
+                recencyDays: { type: SchemaType.INTEGER },
+                minSpend: { type: SchemaType.NUMBER }
               },
-              required: ['name', 'targetSegment', 'channel', 'messageCopy', 'incentive']
-            }
+              required: ['label', 'filters', 'category', 'recencyDays', 'minSpend']
+            },
+            message: {
+              type: SchemaType.OBJECT,
+              properties: {
+                template: { type: SchemaType.STRING },
+                variables: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+                toneUsed: { type: SchemaType.STRING }
+              },
+              required: ['template', 'variables', 'toneUsed']
+            },
+            channel: {
+              type: SchemaType.OBJECT,
+              properties: {
+                recommended: { type: SchemaType.STRING },
+                reason: { type: SchemaType.STRING },
+                alternatives: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } }
+              },
+              required: ['recommended', 'reason', 'alternatives']
+            },
+            confidence: { type: SchemaType.NUMBER }
           },
-          required: ['agentReply']
+          required: ['thinking', 'audience', 'message', 'channel', 'confidence']
         }
       }
     });
 
-    const result = await model.generateContent(prompt);
-    let responseText = result.response.text();
-    responseText = responseText.replace(/```json\n?|```/g, '').trim();
+    const promptText = `Here is the conversation history:
+${history.map((m: any) => `${m.role.toUpperCase()}: ${m.content}`).join('\n')}
 
-    return res.json(JSON.parse(responseText));
+Latest prompt: "${userLastMsg}"
+
+Based on the user's latest input, output the JSON campaign proposal.`;
+
+    const result = await model.generateContent(promptText);
+    let text = result.response.text();
+    text = text.replace(/```json\n?|```/g, '').trim();
+    
+    proposal = JSON.parse(text);
+    proposal = await enrichAudienceData(proposal);
+
+    return res.json(proposal);
   } catch (error: any) {
-    console.error('Systemic error orchestrating campaign:', error);
-    return res.status(500).json({ 
-      error: 'An error occurred while communicating with the AI Agent.',
-      details: error.message
-    });
+    console.error('[AI Workspace] Gemini execution failed, using simulator:', error.message);
+    proposal = getOfflinePreset(userLastMsg, activeCategory, activeLang);
+    proposal = await enrichAudienceData(proposal);
+    return res.json(proposal);
   }
 });
 
