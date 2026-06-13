@@ -3,17 +3,21 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Send, BarChart2, Trophy, UserCircle2 } from 'lucide-react';
+import { LayoutDashboard, Send, BarChart2, Trophy, UserCircle2, Bot, Zap } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { useQueue } from '../../lib/queueContext';
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { isProcessing } = useQueue();
 
   const navItems = [
     { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Campaign Manager', href: '/campaigns', icon: Send },
     { name: 'Gamification Studio', href: '/gamification', icon: Trophy },
     { name: 'Analytics Monitor', href: '/analytics', icon: BarChart2 },
+    { name: 'AI Marketplace', href: '/ai-usage', icon: Bot, pulse: true },
+    { name: 'Nudge Engine', href: '/nudge', icon: Zap },
     { name: 'Team Members', href: '/team', icon: UserCircle2 },
   ];
 
@@ -53,7 +57,13 @@ export default function Sidebar() {
                   isActive ? 'text-foreground' : 'text-neutral-500 group-hover:text-foreground'
                 )}
               />
-              <span>{item.name}</span>
+              <span className="flex-1">{item.name}</span>
+              {item.pulse && isProcessing && (
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                </span>
+              )}
             </Link>
           );
         })}
