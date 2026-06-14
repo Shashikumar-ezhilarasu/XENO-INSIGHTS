@@ -95,6 +95,37 @@ export default function LoginPage() {
               </Link>
             </p>
           </div>
+
+          <div className="mt-8 p-4 rounded-xl bg-purple-500/10 border border-purple-500/20 text-sm text-purple-200">
+            <p className="font-semibold mb-2">👋 Welcome to XENO CRM</p>
+            <p className="text-neutral-400 mb-2">
+              For demonstration purposes, you can use the default login credentials to explore a pre-loaded environment with mock data.
+            </p>
+            <p className="text-neutral-400 mb-4">
+              If you register a new brand account, you must upload a valid data source (e.g., CSV file) to populate your insights and unlock the AI platform features.
+            </p>
+            <button
+              onClick={async () => {
+                setEmail('admin@xeno.com');
+                setPassword('admin');
+                setError('');
+                setLoading(true);
+                try {
+                  // We assume 'login' is available from useTenant
+                  await login('admin@xeno.com', 'admin');
+                  router.push('/dashboard');
+                } catch (err: any) {
+                  setError(err.message || 'Login failed.');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+              className="w-full flex justify-center items-center py-2 px-4 border border-purple-500/50 rounded-lg text-sm font-bold text-purple-200 bg-purple-600/20 hover:bg-purple-600/30 transition disabled:opacity-50"
+            >
+              Use Default Admin Login <ArrowRight className="w-4 h-4 ml-2" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
