@@ -504,7 +504,13 @@ export default function CampaignCommand() {
   const activeBrandCategory = (tenant?.brandCategory || brandCategory || 'retail') as BrandCategory;
   const activeConfig = BRAND_CONFIG[activeBrandCategory] || BRAND_CONFIG.retail;
   const brandAccent = tenant?.accentColor || activeConfig.accentColor;
-  const campaignStatus = getCampaignStatus();
+  const campaignStatus = (() => {
+    if (isSuccess) return 'Launched';
+    if (isDispatching) return 'Ready to Launch';
+    if (audienceLocked) return 'Message Ready';
+    if (activeProposal) return 'Audience Set';
+    return 'Idle';
+  })();
 
   const getMockupText = () => {
     let text = messageText;
@@ -1514,7 +1520,3 @@ export default function CampaignCommand() {
   );
 }
 
-function getCampaignStatus() {
-  // Mocked state logic or placeholder since status state transitions are handled locally
-  return 'Idle';
-}
