@@ -62,6 +62,7 @@ export default function RegisterPage() {
       }
       
       setUploadSuccess(true);
+      localStorage.setItem('xeno_has_data', 'true');
       setTimeout(() => {
         window.location.href = '/dashboard';
       }, 1500);
@@ -110,6 +111,7 @@ export default function RegisterPage() {
       // Store credentials directly just like login
       localStorage.setItem('xeno_auth_token', data.token);
       localStorage.setItem('xeno_brand_category', data.brandCategory);
+      localStorage.setItem('xeno_has_data', 'false');
       
       // We must fetch full profile manually here because register only returns a subset
       const meRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/me`, {

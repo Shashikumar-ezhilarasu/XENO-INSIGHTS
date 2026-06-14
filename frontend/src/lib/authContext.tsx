@@ -91,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('xeno_auth_token', data.token);
     localStorage.setItem('xeno_tenant_profile', JSON.stringify(data));
     localStorage.setItem('xeno_brand_category', data.brandCategory);
+    localStorage.setItem('xeno_has_data', 'true');
     setToken(data.token);
     setTenant(data);
   };

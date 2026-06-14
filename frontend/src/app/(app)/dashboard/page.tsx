@@ -1097,6 +1097,21 @@ export default function OverviewPage() {
         });
         if (res.ok) {
           const stats = await res.json();
+          const hasData = (stats.totalCustomers || 0) > 0;
+
+          if (!hasData) {
+            setDashboardStats({
+              totalCustomers: 0,
+              totalOrders: 0,
+              netSales: 0,
+              repeatRate: 0,
+              recencyDistribution: { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 },
+              funnel: { sent: 0, delivered: 0, opened: 0, clicked: 0, failed: 0, deliveredPercent: 0, openedPercent: 0, failedPercent: 0 },
+              orderFrequencySeries: [0, 0, 0, 0, 0, 0, 0]
+            });
+            return;
+          }
+
           setDashboardStats({
             totalCustomers: stats.totalCustomers || 2600,
             totalOrders: stats.totalOrders || 8500,
@@ -1576,8 +1591,15 @@ export default function OverviewPage() {
           {error}
         </div>
       )}
-
       {/* Real-time DB Aggregations: High-Fidelity KPI Cards */}
+      {dashboardStats?.totalCustomers === 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/20 text-amber-500 px-4 py-3 rounded-xl flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-3">
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+            <p className="text-sm font-medium">To get real insights about your data, please insert a data source via workspace settings or upload a CSV.</p>
+          </div>
+        </div>
+      )}
       {dashboardLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[...Array(4)].map((_, i) => (

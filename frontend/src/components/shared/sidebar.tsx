@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Send, BarChart2, Trophy, UserCircle2, Bot, Zap, Settings, LogOut, Activity } from 'lucide-react';
@@ -40,6 +40,13 @@ export default function Sidebar() {
     }
   ];
 
+  const [hasData, setHasData] = useState(true);
+  useEffect(() => {
+    setHasData(localStorage.getItem('xeno_has_data') === 'true');
+  }, []);
+
+  const gatedPaths = ['/campaigns/command', '/campaigns'];
+
   return (
     <aside className="w-64 bg-card border-r border-border h-screen sticky top-0 flex flex-col shrink-0">
       {/* Brand Header */}
@@ -64,22 +71,30 @@ export default function Sidebar() {
               {group.items.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+                const isGated = !hasData && gatedPaths.includes(item.href);
                 
                 return (
                   <Link
                     key={item.href}
-                    href={item.href}
+                    href={isGated ? '#' : item.href}
+                    onClick={(e) => {
+                      if (isGated) {
+                        e.preventDefault();
+                        alert('Please upload a valid data source in settings to unlock this feature.');
+                      }
+                    }}
                     className={cn(
                       'flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm font-medium transition duration-200 group',
-                      isActive
+                      isActive && !isGated
                         ? 'bg-secondary text-foreground'
-                        : 'text-neutral-500 hover:text-foreground hover:bg-secondary/40'
+                        : 'text-neutral-500 hover:text-foreground hover:bg-secondary/40',
+                      isGated && 'opacity-50 cursor-not-allowed hover:bg-transparent hover:text-neutral-500'
                     )}
                   >
                     <Icon
                       className={cn(
                         'w-4 h-4 transition duration-200',
-                        isActive ? 'text-foreground' : 'text-neutral-500 group-hover:text-foreground'
+                        isActive && !isGated ? 'text-foreground' : 'text-neutral-500 group-hover:text-foreground'
                       )}
                     />
                     <span className="flex-1">{item.name}</span>
