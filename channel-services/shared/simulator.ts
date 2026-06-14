@@ -108,15 +108,35 @@ export function buildEventChain(profile: ChannelProfile): DeliveryEvent[] {
   return events;
 }
 
+import crypto from 'crypto';
+
+/**
+ * @function generateWebhookSignature
+ * @description Generates an HMAC-SHA256 signature for a given payload
+ * @param payload {object} The callback payload object
+ * @param secret {string} The webhook secret
+ * @returns {string} The hex digest of the HMAC signature
+ */
+export function generateWebhookSignature(payload: any, secret: string): string {
+  const jsonPayload = JSON.stringify(payload);
+  return crypto.createHmac('sha256', secret).update(jsonPayload).digest('hex');
+}
+
 async function fireCallbackWithRetry(
   url: string,
   payload: CallbackPayload,
   attempt = 1
 ): Promise<void> {
   try {
+    const webhookSecret = process.env.WEBHOOK_SECRET || '';
+    const signature = generateWebhookSignature(payload, webhookSecret);
+    
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-Webhook-Signature': signature
+      },
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
