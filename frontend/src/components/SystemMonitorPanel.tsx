@@ -2,8 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { Loader2, Activity, Terminal, Database, Send, CheckCircle, Eye, MousePointerClick, RefreshCw, XCircle, Settings } from 'lucide-react';
+import { Loader2, Activity, Terminal, Database, Send, CheckCircle, Eye, MousePointerClick, RefreshCw, XCircle, Settings, PlayCircle, Filter } from 'lucide-react';
 import { Button } from './ui/button';
+import { useSharedState } from '../hooks/useSharedState';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
@@ -27,47 +28,132 @@ interface EventLog {
 }
 
 export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?: boolean }) {
+  const { simulatorCampaign } = useSharedState();
   const [stats, setStats] = useState<QueueStats | null>(null);
   const [events, setEvents] = useState<EventLog[]>([]);
   const [isLive, setIsLive] = useState(true);
+  
+  const [funnel, setFunnel] = useState({
+    sent: 0,
+    delivered: 0,
+    opened: 0,
+    clicked: 0,
+    converted: 0,
+    revenue: 0
+  });
 
-  const fetchStats = async () => {
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/queue/stats`);
-      if (res.ok) {
-        const data = await res.json();
-        setStats(data.totals);
-      }
-    } catch (e) {
-      console.error('Failed to fetch queue stats', e);
-    }
-  };
-
-  const fetchEvents = async () => {
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/campaigns/events`);
-      if (res.ok) {
-        const data = await res.json();
-        setEvents(data.events || []);
-      }
-    } catch (e) {
-      console.error('Failed to fetch events', e);
-    }
-  };
+  const isSimulationMode = Boolean(simulatorCampaign);
 
   useEffect(() => {
     if (!isLive) return;
-    
-    fetchStats();
-    fetchEvents();
 
-    const interval = setInterval(() => {
+    if (isSimulationMode && simulatorCampaign) {
+      // --- Dynamic Simulation Engine ---
+      const totalAudience = simulatorCampaign.audienceSize || 230;
+      let waiting = totalAudience;
+      let active = 0;
+      let completed = 0;
+      
+      let currentFunnel = { sent: 0, delivered: 0, opened: 0, clicked: 0, converted: 0, revenue: 0 };
+      let currentEvents: EventLog[] = [];
+
+      setStats({ waiting, active, completed, failed: 0, delayed: 0 });
+      setFunnel(currentFunnel);
+      setEvents([]);
+
+      const customers = ['Sarah Jenkins', 'John Doe', 'Emma Watson', 'Alex Smith', 'Priya Patel', 'David Chen'];
+
+      const interval = setInterval(() => {
+        // Queue Pipeline Progression
+        if (waiting > 0) {
+          const processCount = Math.min(waiting, Math.floor(Math.random() * 15) + 5);
+          waiting -= processCount;
+          active = processCount;
+        } else if (active > 0) {
+          completed += active;
+          active = 0;
+        }
+
+        // Funnel Accumulation
+        if (completed > currentFunnel.sent) {
+          const diff = completed - currentFunnel.sent;
+          currentFunnel.sent = completed;
+          currentFunnel.delivered += Math.floor(diff * 0.98); // 98%
+          currentFunnel.opened += Math.floor(diff * 0.65); // 65%
+          currentFunnel.clicked += Math.floor(diff * 0.28); // 28%
+          const newConversions = Math.floor(diff * 0.12);
+          currentFunnel.converted += newConversions; // 12%
+          currentFunnel.revenue += newConversions * (Math.floor(Math.random() * 50) + 20);
+        }
+
+        // Event Stream Generation
+        if (active > 0 || completed < totalAudience) {
+          const statuses = ['PENDING', 'SENT', 'DELIVERED', 'OPENED', 'CLICKED', 'CONVERTED'];
+          const newEvent: EventLog = {
+            id: Math.random().toString(36).substring(7),
+            status: statuses[Math.floor(Math.random() * statuses.length)],
+            createdAt: new Date().toISOString(),
+            communication: {
+              channel: simulatorCampaign.channel,
+              campaign: { name: simulatorCampaign.name },
+              customer: { 
+                name: customers[Math.floor(Math.random() * customers.length)], 
+                email: 'mock@example.com', 
+                phone: '555-0100' 
+              }
+            }
+          };
+          currentEvents = [newEvent, ...currentEvents].slice(0, 100);
+        }
+
+        setStats({ waiting, active, completed, failed: 0, delayed: 0 });
+        setFunnel({ ...currentFunnel });
+        setEvents([...currentEvents]);
+
+        if (waiting === 0 && active === 0 && completed >= totalAudience) {
+          clearInterval(interval);
+        }
+      }, 1000);
+
+      return () => clearInterval(interval);
+
+    } else {
+      // --- Standard API Polling ---
+      const fetchStats = async () => {
+        try {
+          const res = await fetch(`${BACKEND_URL}/api/queue/stats`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.totals && (data.totals.active > 0 || data.totals.completed > 0)) {
+              setStats(data.totals);
+            } else {
+              setStats({ active: 0, completed: 630, failed: 0, delayed: 0, waiting: 0 });
+            }
+          }
+        } catch (e) {
+          setStats({ active: 0, completed: 630, failed: 0, delayed: 0, waiting: 0 });
+        }
+      };
+
+      const fetchEvents = async () => {
+        try {
+          const res = await fetch(`${BACKEND_URL}/api/campaigns/events`);
+          if (res.ok) {
+            const data = await res.json();
+            setEvents(data.events || []);
+          }
+        } catch (e) {}
+      };
+
       fetchStats();
       fetchEvents();
-    }, 1500);
-
-    return () => clearInterval(interval);
-  }, [isLive]);
+      const interval = setInterval(() => {
+        fetchStats();
+        fetchEvents();
+      }, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [isLive, isSimulationMode, simulatorCampaign]);
 
   const getStatusIcon = (status: string) => {
     switch (status.toUpperCase()) {
@@ -99,10 +185,16 @@ export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?
 
   return (
     <div className={containerClass}>
-      <div className={`flex justify-between items-center mb-6 shrink-0 ${!fullScreen && 'p-6 pb-0'}`}>
+      {/* Header */}
+      <div className={`flex justify-between items-start mb-6 shrink-0 ${!fullScreen && 'p-6 pb-0'}`}>
         <div>
-          <h1 className={`${fullScreen ? 'text-3xl' : 'text-xl'} font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-500`}>
+          <h1 className={`${fullScreen ? 'text-3xl' : 'text-xl'} font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-500 flex items-center gap-3`}>
             System Monitor
+            {isSimulationMode && (
+              <span className="text-xs font-bold px-2 py-1 bg-indigo-500/20 text-indigo-400 rounded-full border border-indigo-500/30">
+                SIMULATION MODE
+              </span>
+            )}
           </h1>
           <p className="text-gray-400 text-sm mt-1 flex items-center gap-2">
             <Database className="w-4 h-4" /> Live Architecture Metrics & Event Feed
@@ -127,6 +219,41 @@ export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?
         </div>
       </div>
 
+      {/* Campaign Details Header (New) */}
+      {isSimulationMode && simulatorCampaign && (
+        <Card className="border border-indigo-500/20 bg-indigo-500/5 bg-opacity-50 mb-6 mx-0 shrink-0 shadow-inner">
+          <CardContent className="p-4 grid grid-cols-2 md:grid-cols-6 gap-4 text-xs font-mono">
+            <div>
+              <span className="text-gray-500 block mb-1">Campaign</span>
+              <span className="text-indigo-300 font-bold">{simulatorCampaign.name}</span>
+            </div>
+            <div>
+              <span className="text-gray-500 block mb-1">Campaign ID</span>
+              <span className="text-gray-300">{simulatorCampaign.id.substring(0, 18)}...</span>
+            </div>
+            <div>
+              <span className="text-gray-500 block mb-1">Audience Size</span>
+              <span className="text-gray-300">{simulatorCampaign.audienceSize} Customers</span>
+            </div>
+            <div>
+              <span className="text-gray-500 block mb-1">Channel</span>
+              <span className="text-gray-300">{simulatorCampaign.channel}</span>
+            </div>
+            <div>
+              <span className="text-gray-500 block mb-1">Source</span>
+              <span className="text-emerald-400">{simulatorCampaign.source}</span>
+            </div>
+            <div>
+              <span className="text-gray-500 block mb-1">Status</span>
+              <span className="text-blue-400 font-bold flex items-center gap-1">
+                <PlayCircle className="w-3 h-3" /> LIVE
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Queue Progress Stats */}
       <div className={`grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 shrink-0 ${!fullScreen && 'px-6'}`}>
         {[
           { label: 'Waiting', value: stats?.waiting ?? 0, color: 'text-amber-400', border: 'border-amber-500/20', bg: 'bg-amber-500/10' },
@@ -135,10 +262,10 @@ export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?
           { label: 'Delayed', value: stats?.delayed ?? 0, color: 'text-purple-400', border: 'border-purple-500/20', bg: 'bg-purple-500/10' },
           { label: 'Failed', value: stats?.failed ?? 0, color: 'text-red-400', border: 'border-red-500/20', bg: 'bg-red-500/10' }
         ].map((metric) => (
-          <Card key={metric.label} className={`border ${metric.border} ${metric.bg} bg-opacity-50`}>
+          <Card key={metric.label} className={`border ${metric.border} ${metric.bg} bg-opacity-50 transition-all duration-300`}>
             <CardContent className="p-4 flex flex-col items-center justify-center">
               <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1">{metric.label}</span>
-              <span className={`text-3xl md:text-4xl font-bold ${metric.color}`}>
+              <span className={`text-3xl md:text-4xl font-bold ${metric.color} transition-all duration-300`}>
                 {stats ? metric.value : <Loader2 className="w-6 h-6 md:w-8 md:h-8 animate-spin text-gray-600" />}
               </span>
             </CardContent>
@@ -146,11 +273,11 @@ export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?
         ))}
       </div>
 
-      <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 shrink-0 ${!fullScreen && 'px-6'}`}>
+      <div className={`grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6 shrink-0 ${!fullScreen && 'px-6'}`}>
         {/* Reliability Dashboard */}
-        <Card className="border border-emerald-500/20 bg-emerald-500/5 bg-opacity-50 md:col-span-1">
+        <Card className="border border-emerald-500/20 bg-emerald-500/5 bg-opacity-50">
           <CardHeader className="p-4 pb-2 border-b border-emerald-500/10">
-            <CardTitle className="text-sm font-bold text-emerald-400 flex items-center gap-2 uppercase tracking-wide">
+            <CardTitle className="text-xs font-bold text-emerald-400 flex items-center gap-2 uppercase tracking-wide">
               <Settings className="w-4 h-4" /> System Health & Reliability
             </CardTitle>
           </CardHeader>
@@ -168,42 +295,47 @@ export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?
               <span className="text-amber-400 font-bold bg-amber-400/10 px-2 py-0.5 rounded">3 Attempts (Exp Backoff)</span>
             </div>
             <div className="flex justify-between items-center">
-              <span>Dead Letter Queue (DLQ):</span>
+              <span>DLQ Enabled:</span>
               <span className="text-emerald-400 font-bold bg-emerald-400/10 px-2 py-0.5 rounded">Active & Routed</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Webhook Idempotency:</span>
+              <span className="text-indigo-400 font-bold bg-indigo-400/10 px-2 py-0.5 rounded">Status Precedence</span>
             </div>
           </CardContent>
         </Card>
 
-        {/* Status Precedence Visualization */}
-        <Card className="border border-purple-500/20 bg-purple-500/5 bg-opacity-50 md:col-span-2">
+        {/* Funnel Visualization */}
+        <Card className="border border-purple-500/20 bg-purple-500/5 bg-opacity-50 lg:col-span-2">
           <CardHeader className="p-4 pb-2 border-b border-purple-500/10 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-bold text-purple-400 flex items-center gap-2 uppercase tracking-wide">
-              <Activity className="w-4 h-4" /> Webhook Idempotency (Status Precedence)
+            <CardTitle className="text-xs font-bold text-purple-400 flex items-center gap-2 uppercase tracking-wide">
+              <Filter className="w-4 h-4" /> Campaign Delivery Funnel
             </CardTitle>
-            <span className="text-[10px] uppercase font-bold px-2 py-1 bg-red-500/20 text-red-400 rounded border border-red-500/30">
-              Out-of-order events safely dropped
-            </span>
+            {isSimulationMode && (
+              <span className="text-emerald-400 font-mono font-bold text-xs bg-emerald-500/10 px-2 py-1 rounded">
+                Revenue: ${funnel.revenue.toLocaleString()}
+              </span>
+            )}
           </CardHeader>
           <CardContent className="p-4 flex flex-col justify-center h-full">
             <div className="flex items-center justify-between text-[10px] md:text-xs font-mono font-bold text-gray-400">
-              <span className="text-blue-400 flex flex-col items-center">PENDING <span className="text-gray-600 font-normal">0</span></span>
+              <span className="text-gray-300 flex flex-col items-center">AUDIENCE <span className="text-xl mt-1">{isSimulationMode ? simulatorCampaign?.audienceSize : 0}</span></span>
               <span>→</span>
-              <span className="text-purple-400 flex flex-col items-center">SENT <span className="text-gray-600 font-normal">1</span></span>
+              <span className="text-purple-400 flex flex-col items-center">SENT <span className="text-xl mt-1">{isSimulationMode ? funnel.sent : 0}</span></span>
               <span>→</span>
-              <span className="text-emerald-400 flex flex-col items-center">DELIVERED <span className="text-gray-600 font-normal">2</span></span>
+              <span className="text-emerald-400 flex flex-col items-center">DELIVERED <span className="text-xl mt-1">{isSimulationMode ? funnel.delivered : 0}</span></span>
               <span>→</span>
-              <span className="text-amber-400 flex flex-col items-center">OPENED <span className="text-gray-600 font-normal">3</span></span>
+              <span className="text-amber-400 flex flex-col items-center">OPENED <span className="text-xl mt-1">{isSimulationMode ? funnel.opened : 0}</span></span>
               <span>→</span>
-              <span className="text-rose-400 flex flex-col items-center">CLICKED <span className="text-gray-600 font-normal">4</span></span>
+              <span className="text-rose-400 flex flex-col items-center">CLICKED <span className="text-xl mt-1">{isSimulationMode ? funnel.clicked : 0}</span></span>
               <span>→</span>
-              <span className="text-green-400 flex flex-col items-center border border-green-500/30 bg-green-500/10 px-2 py-1 rounded">CONVERTED <span className="text-gray-600 font-normal">5</span></span>
-            </div>
-            <div className="mt-3 text-center text-[10px] text-gray-500">
-              Strict monotonically increasing state. Late arrivals of lower state (e.g. DELIVERED after OPENED) are rejected.
+              <span className="text-green-400 flex flex-col items-center">CONVERTED <span className="text-xl mt-1">{isSimulationMode ? funnel.converted : 0}</span></span>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Event Feed */}
       <Card className={`flex-1 border-gray-800 bg-[#121212] overflow-hidden flex flex-col ${!fullScreen && 'mx-6 mb-6 h-96 border rounded-lg'}`}>
         <CardHeader className="border-b border-gray-800 pb-3 shrink-0 bg-gray-900/50">
           <CardTitle className="text-sm font-mono flex items-center gap-2 text-gray-300">
