@@ -9,20 +9,7 @@ export default function TourModal() {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    // Wait for the user to complete the dashboard onboarding before showing the tour
-    const checkTourState = () => {
-      const hasSeenTour = localStorage.getItem('xeno_has_seen_tour');
-      const hasOnboarded = localStorage.getItem('xeno_onboarded');
-      
-      if (!hasSeenTour && hasOnboarded === 'true') {
-        setIsOpen(true);
-      }
-    };
-
-    // Check immediately on mount
-    checkTourState();
-
-    // Listen for custom event from the Help button in the navbar or onboarding completion
+    // Listen for custom event from the Help button in the navbar
     const handleOpenTour = () => {
       setIsOpen(true);
     };
