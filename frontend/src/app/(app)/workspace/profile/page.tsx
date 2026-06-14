@@ -22,12 +22,12 @@ export default function BusinessProfilePage() {
   useEffect(() => {
     if (tenant) {
       setFormData({
-        brandName: tenant.brandName || '',
-        brandCategory: tenant.brandCategory || '',
-        accentColor: tenant.accentColor || '',
-        kpiPrimaryLabel: tenant.preferences?.kpiPrimaryLabel || '',
-        kpiRevenueLabel: tenant.preferences?.kpiRevenueLabel || '',
-        dbUri: tenant.preferences?.dbUri || ''
+        brandName: tenant.brandName || 'Blue Tokai Coffee',
+        brandCategory: tenant.brandCategory || 'Coffee & Cafe Retail',
+        accentColor: tenant.accentColor || '#8b5cf6',
+        kpiPrimaryLabel: tenant.preferences?.kpiPrimaryLabel || 'Customers',
+        kpiRevenueLabel: tenant.preferences?.kpiRevenueLabel || 'Revenue',
+        dbUri: tenant.preferences?.dbUri || 'postgres://admin:secret@ep-shiny-sky-123456.us-east-2.aws.neon.tech/neondb'
       });
     }
   }, [tenant]);
