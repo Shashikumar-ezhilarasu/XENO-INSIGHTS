@@ -44,24 +44,57 @@ export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?
 
   const isSimulationMode = Boolean(simulatorCampaign);
 
+  // Force simulation for demo purposes if no campaign is provided
+  const activeCampaign = simulatorCampaign || {
+    id: "CMP-GLOBAL-FEED",
+    name: "Global Platform Engagement Feed",
+    audienceSize: 15420,
+    channel: "MULTI-CHANNEL",
+    source: "System Pipeline"
+  };
+  const activeIsSimulationMode = isSimulationMode || !simulatorCampaign;
+
   useEffect(() => {
     if (!isLive) return;
 
-    if (isSimulationMode && simulatorCampaign) {
+    if (activeIsSimulationMode && activeCampaign) {
       // --- Dynamic Simulation Engine ---
-      const totalAudience = simulatorCampaign.audienceSize || 230;
-      let waiting = totalAudience;
+      const totalAudience = activeCampaign.audienceSize || 15420;
+      let completed = Math.floor(totalAudience * 0.45); // Start at 45% done
+      let waiting = totalAudience - completed;
       let active = 0;
-      let completed = 0;
       
-      let currentFunnel = { sent: 0, delivered: 0, opened: 0, clicked: 0, converted: 0, revenue: 0 };
-      let currentEvents: EventLog[] = [];
+      let currentFunnel = { 
+        sent: completed, 
+        delivered: Math.floor(completed * 0.98), 
+        opened: Math.floor(completed * 0.65), 
+        clicked: Math.floor(completed * 0.28), 
+        converted: Math.floor(completed * 0.12), 
+        revenue: Math.floor(completed * 0.12) * 45 
+      };
+      
+      const customers = ['Sarah Jenkins', 'John Doe', 'Emma Watson', 'Alex Smith', 'Priya Patel', 'David Chen'];
+      const statuses = ['PENDING', 'SENT', 'DELIVERED', 'OPENED', 'CLICKED', 'CONVERTED'];
+      
+      // Pre-fill with historical events so the table isn't empty initially
+      let currentEvents: EventLog[] = Array.from({ length: 15 }).map((_, i) => ({
+        id: `mock-init-${i}`,
+        status: statuses[Math.floor(Math.random() * statuses.length)],
+        createdAt: new Date(Date.now() - i * 5000).toISOString(),
+        communication: {
+          channel: activeCampaign.channel,
+          campaign: { name: activeCampaign.name },
+          customer: { 
+            name: customers[Math.floor(Math.random() * customers.length)], 
+            email: 'mock@example.com', 
+            phone: '555-0100' 
+          }
+        }
+      }));
 
       setStats({ waiting, active, completed, failed: 0, delayed: 0 });
       setFunnel(currentFunnel);
-      setEvents([]);
-
-      const customers = ['Sarah Jenkins', 'John Doe', 'Emma Watson', 'Alex Smith', 'Priya Patel', 'David Chen'];
+      setEvents(currentEvents);
 
       const interval = setInterval(() => {
         // Queue Pipeline Progression
@@ -88,22 +121,25 @@ export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?
 
         // Event Stream Generation
         if (active > 0 || completed < totalAudience) {
-          const statuses = ['PENDING', 'SENT', 'DELIVERED', 'OPENED', 'CLICKED', 'CONVERTED'];
-          const newEvent: EventLog = {
-            id: Math.random().toString(36).substring(7),
-            status: statuses[Math.floor(Math.random() * statuses.length)],
-            createdAt: new Date().toISOString(),
-            communication: {
-              channel: simulatorCampaign.channel,
-              campaign: { name: simulatorCampaign.name },
-              customer: { 
-                name: customers[Math.floor(Math.random() * customers.length)], 
-                email: 'mock@example.com', 
-                phone: '555-0100' 
+          // Generate exactly 1 event every 2.5 seconds for readability
+          const eventCount = 1;
+          for (let i = 0; i < eventCount; i++) {
+            const newEvent: EventLog = {
+              id: Math.random().toString(36).substring(7),
+              status: statuses[Math.floor(Math.random() * statuses.length)],
+              createdAt: new Date().toISOString(),
+              communication: {
+                channel: activeCampaign.channel,
+                campaign: { name: activeCampaign.name },
+                customer: { 
+                  name: customers[Math.floor(Math.random() * customers.length)], 
+                  email: 'mock@example.com', 
+                  phone: '555-0100' 
+                }
               }
-            }
-          };
-          currentEvents = [newEvent, ...currentEvents].slice(0, 100);
+            };
+            currentEvents = [newEvent, ...currentEvents].slice(0, 100);
+          }
         }
 
         setStats({ waiting, active, completed, failed: 0, delayed: 0 });
@@ -113,7 +149,7 @@ export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?
         if (waiting === 0 && active === 0 && completed >= totalAudience) {
           clearInterval(interval);
         }
-      }, 1000);
+      }, 5000);
 
       return () => clearInterval(interval);
 
@@ -153,7 +189,7 @@ export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?
       }, 2000);
       return () => clearInterval(interval);
     }
-  }, [isLive, isSimulationMode, simulatorCampaign]);
+  }, [isLive, activeIsSimulationMode, activeCampaign.id]);
 
   const getStatusIcon = (status: string) => {
     switch (status.toUpperCase()) {
@@ -190,7 +226,7 @@ export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?
         <div>
           <h1 className={`${fullScreen ? 'text-3xl' : 'text-xl'} font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-500 flex items-center gap-3`}>
             System Monitor
-            {isSimulationMode && (
+            {activeIsSimulationMode && (
               <span className="text-xs font-bold px-2 py-1 bg-indigo-500/20 text-indigo-400 rounded-full border border-indigo-500/30">
                 SIMULATION MODE
               </span>
@@ -220,28 +256,28 @@ export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?
       </div>
 
       {/* Campaign Details Header (New) */}
-      {isSimulationMode && simulatorCampaign && (
+      {activeIsSimulationMode && activeCampaign && (
         <Card className="border border-indigo-500/20 bg-indigo-500/5 bg-opacity-50 mb-6 mx-0 shrink-0 shadow-inner">
           <CardContent className="p-4 grid grid-cols-2 md:grid-cols-6 gap-4 text-xs font-mono">
             <div>
               <span className="text-gray-500 block mb-1">Campaign</span>
-              <span className="text-indigo-300 font-bold">{simulatorCampaign.name}</span>
+              <span className="text-indigo-300 font-bold">{activeCampaign.name}</span>
             </div>
             <div>
               <span className="text-gray-500 block mb-1">Campaign ID</span>
-              <span className="text-gray-300">{simulatorCampaign.id.substring(0, 18)}...</span>
+              <span className="text-gray-300">{activeCampaign.id.substring(0, 18)}...</span>
             </div>
             <div>
               <span className="text-gray-500 block mb-1">Audience Size</span>
-              <span className="text-gray-300">{simulatorCampaign.audienceSize} Customers</span>
+              <span className="text-gray-300">{activeCampaign.audienceSize} Customers</span>
             </div>
             <div>
               <span className="text-gray-500 block mb-1">Channel</span>
-              <span className="text-gray-300">{simulatorCampaign.channel}</span>
+              <span className="text-gray-300">{activeCampaign.channel}</span>
             </div>
             <div>
               <span className="text-gray-500 block mb-1">Source</span>
-              <span className="text-emerald-400">{simulatorCampaign.source}</span>
+              <span className="text-emerald-400">{activeCampaign.source}</span>
             </div>
             <div>
               <span className="text-gray-500 block mb-1">Status</span>
@@ -311,7 +347,7 @@ export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?
             <CardTitle className="text-xs font-bold text-purple-400 flex items-center gap-2 uppercase tracking-wide">
               <Filter className="w-4 h-4" /> Campaign Delivery Funnel
             </CardTitle>
-            {isSimulationMode && (
+            {activeIsSimulationMode && (
               <span className="text-emerald-400 font-mono font-bold text-xs bg-emerald-500/10 px-2 py-1 rounded">
                 Revenue: ${funnel.revenue.toLocaleString()}
               </span>
@@ -319,17 +355,17 @@ export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?
           </CardHeader>
           <CardContent className="p-4 flex flex-col justify-center h-full">
             <div className="flex items-center justify-between text-[10px] md:text-xs font-mono font-bold text-gray-400">
-              <span className="text-gray-300 flex flex-col items-center">AUDIENCE <span className="text-xl mt-1">{isSimulationMode ? simulatorCampaign?.audienceSize : 0}</span></span>
+              <span className="text-gray-300 flex flex-col items-center">AUDIENCE <span className="text-xl mt-1">{activeCampaign?.audienceSize || 0}</span></span>
               <span>→</span>
-              <span className="text-purple-400 flex flex-col items-center">SENT <span className="text-xl mt-1">{isSimulationMode ? funnel.sent : 0}</span></span>
+              <span className="text-purple-400 flex flex-col items-center">SENT <span className="text-xl mt-1">{funnel.sent}</span></span>
               <span>→</span>
-              <span className="text-emerald-400 flex flex-col items-center">DELIVERED <span className="text-xl mt-1">{isSimulationMode ? funnel.delivered : 0}</span></span>
+              <span className="text-emerald-400 flex flex-col items-center">DELIVERED <span className="text-xl mt-1">{funnel.delivered}</span></span>
               <span>→</span>
-              <span className="text-amber-400 flex flex-col items-center">OPENED <span className="text-xl mt-1">{isSimulationMode ? funnel.opened : 0}</span></span>
+              <span className="text-amber-400 flex flex-col items-center">OPENED <span className="text-xl mt-1">{funnel.opened}</span></span>
               <span>→</span>
-              <span className="text-rose-400 flex flex-col items-center">CLICKED <span className="text-xl mt-1">{isSimulationMode ? funnel.clicked : 0}</span></span>
+              <span className="text-rose-400 flex flex-col items-center">CLICKED <span className="text-xl mt-1">{funnel.clicked}</span></span>
               <span>→</span>
-              <span className="text-green-400 flex flex-col items-center">CONVERTED <span className="text-xl mt-1">{isSimulationMode ? funnel.converted : 0}</span></span>
+              <span className="text-green-400 flex flex-col items-center">CONVERTED <span className="text-xl mt-1">{funnel.converted}</span></span>
             </div>
           </CardContent>
         </Card>
