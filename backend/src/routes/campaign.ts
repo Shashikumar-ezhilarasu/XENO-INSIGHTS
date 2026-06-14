@@ -184,7 +184,8 @@ router.post('/create', validateCampaignCreate, async (req: Request, res: Respons
         messageTemplateB: messageTemplateB || null,
         imageUrl: imageUrl || null,
         buttons: serializedButtons,
-        autoSplit: autoSplit ?? false
+        autoSplit: autoSplit ?? false,
+        source: req.body.source || 'MANUAL'
       }
     });
 

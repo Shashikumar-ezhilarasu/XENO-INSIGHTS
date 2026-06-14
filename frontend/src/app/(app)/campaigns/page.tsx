@@ -52,6 +52,7 @@ interface CampaignDraftData {
     messageTemplate: string | null;
     channel: string;
     status: string;
+    source?: string;
   };
   customerCount: number;
   customerIds: string[];
@@ -149,7 +150,7 @@ const CAMPAIGN_PRESETS = [
 
 function AISegmentsStudioContent() {
   const router = useRouter();
-  const { setSelectedAudience } = useSharedState();
+  const { selectedAudience, campaignTemplate, campaignChannel, campaignSource, setCampaignSource, setSelectedAudience, setSimulatorCampaign } = useSharedState();
 
   const [prompt, setPrompt] = useState("");
   const [campaignType, setCampaignType] = useState("STANDARD");
@@ -198,6 +199,40 @@ function AISegmentsStudioContent() {
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [broadcastSuccess, setBroadcastSuccess] = useState(false);
 
+  useEffect(() => {
+    if (campaignSource === 'AI Command Center' && selectedAudience) {
+      setDraftCampaign({
+        success: true,
+        campaign: {
+          id: 'ai-cmd-' + Date.now(),
+          name: selectedAudience.query || 'AI Command Center Strategy',
+          promptText: selectedAudience.explanation,
+          messageTemplate: campaignTemplate || '',
+          channel: campaignChannel || 'WHATSAPP',
+          status: 'DRAFT',
+          source: 'AI Command Center'
+        },
+        customerCount: selectedAudience.audienceSize,
+        customerIds: selectedAudience.customers.map((c: any) => c.id),
+        explanation: selectedAudience.explanation,
+        copywriteSuite: {
+          notificationHeader: 'Strategy: ' + selectedAudience.query,
+          messageTemplate: campaignTemplate || '',
+          creativeQuote: 'Optimized for ' + (campaignChannel || 'WHATSAPP'),
+        },
+        bannerConfig: {
+          themeGradient: 'from-purple-500 to-indigo-600',
+          stickerEmoji: '🤖',
+          primaryCallToAction: 'Generate Offer',
+        }
+      });
+      setEditCampaignName(selectedAudience.query || 'AI Command Center Strategy');
+      setEditMessageTemplate(campaignTemplate || '');
+      setEditChannel(campaignChannel || 'WHATSAPP');
+      // Clear out so it doesn't loop
+      setCampaignSource('MANUAL');
+    }
+  }, [campaignSource, selectedAudience, campaignTemplate, campaignChannel, setCampaignSource]);
   // Interactive Loyalty Game States
   const [spinDeg, setSpinDeg] = useState(0);
   const [isSpinning, setIsSpinning] = useState(false);
@@ -610,26 +645,49 @@ function AISegmentsStudioContent() {
     );
 
     try {
-      // Step 1: Update Campaign with edited name, copy, channel and status='PENDING'
-      const updateRes = await fetch(
-        `${BACKEND_URL}/api/campaigns/${draftCampaign.campaign.id}`,
-        {
-          method: "PATCH",
+      // Step 1: Ensure Campaign exists. If it's a fake ID from AI Command Center, create it.
+      let finalCampaignId = draftCampaign.campaign.id;
+      
+      if (finalCampaignId.startsWith('ai-cmd-')) {
+        const createRes = await fetch(`${BACKEND_URL}/api/campaigns/create`, {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: editCampaignName,
-            messageTemplate: compiledTemplate,
+            promptText: draftCampaign.explanation || "AI Command Center Orchestrated",
             channel: editChannel,
-            status: "PENDING",
+            messageTemplate: compiledTemplate,
+            source: draftCampaign.campaign.source || "AI Command Center",
+            status: "PENDING"
           }),
-        },
-      );
-
-      const updateData = await updateRes.json();
-      if (!updateRes.ok) {
-        throw new Error(
-          updateData.error || "Failed to save updated campaign details.",
+        });
+        const createData = await createRes.json();
+        if (!createRes.ok) {
+          throw new Error(createData.error || "Failed to create campaign.");
+        }
+        finalCampaignId = createData.campaign.id;
+      } else {
+        // Step 1b: Update Campaign with edited name, copy, channel and status='PENDING'
+        const updateRes = await fetch(
+          `${BACKEND_URL}/api/campaigns/${finalCampaignId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: editCampaignName,
+              messageTemplate: compiledTemplate,
+              channel: editChannel,
+              status: "PENDING",
+            }),
+          },
         );
+
+        const updateData = await updateRes.json();
+        if (!updateRes.ok) {
+          throw new Error(
+            updateData.error || "Failed to save updated campaign details.",
+          );
+        }
       }
 
       // Step 2: Dispatch Campaign broadcast using existing send endpoint
@@ -637,7 +695,7 @@ function AISegmentsStudioContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          campaignId: draftCampaign.campaign.id,
+          campaignId: finalCampaignId,
           customerIds: draftCampaign.customerIds,
         }),
       });
@@ -647,6 +705,16 @@ function AISegmentsStudioContent() {
         throw new Error(sendData.error || "Failed to broadcast campaign.");
       }
 
+      const mockContext = {
+        id: finalCampaignId,
+        name: editCampaignName,
+        audienceSize: draftCampaign.customerCount || draftCampaign.customerIds?.length || 0,
+        channel: editChannel,
+        source: draftCampaign.campaign.source || "AI Command Center",
+        createdAt: new Date().toISOString()
+      };
+
+      setSimulatorCampaign(mockContext);
       setBroadcastSuccess(true);
 
       // Redirect to Simulator
@@ -658,6 +726,17 @@ function AISegmentsStudioContent() {
         "Broadcast API failed, proceeding with offline simulation:",
         err,
       );
+      
+      const mockContext = {
+        id: "ai-cmd-" + Date.now(),
+        name: editCampaignName,
+        audienceSize: draftCampaign.customerCount || draftCampaign.customerIds?.length || 0,
+        channel: editChannel,
+        source: draftCampaign.campaign.source || "AI Command Center",
+        createdAt: new Date().toISOString()
+      };
+
+      setSimulatorCampaign(mockContext);
       setBroadcastSuccess(true);
 
       // Redirect to Simulator
@@ -757,12 +836,11 @@ function AISegmentsStudioContent() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground to-neutral-500 bg-clip-text text-transparent font-sans flex items-center gap-2">
-            <Bot className="w-8 h-8 text-purple-500" />
-            AI Marketing Agent Workspace
+            <Send className="w-8 h-8 text-purple-500" />
+            Campaign Manager
           </h1>
           <p className="text-sm text-neutral-500 max-w-xl font-medium">
-            Type target requests or choose from one of the active templates
-            below to instantly draft copy and launch campaigns.
+            Build, review, and launch campaigns generated by AI or created manually.
           </p>
         </div>
         {draftCampaign && (
@@ -830,95 +908,6 @@ function AISegmentsStudioContent() {
               </button>
             </div>
           </form>
-
-          {/* Quick Action Chips */}
-          <div className="space-y-3 pt-4 border-t border-border/60">
-            <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider block">
-              Quick Action Chips
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {CAMPAIGN_PRESETS.slice(0, 4).map((preset) => (
-                <button
-                  key={`chip-${preset.id}`}
-                  onClick={() => handleChipClick(preset.promptText)}
-                  disabled={isParsing}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary hover:bg-purple-100 dark:hover:bg-purple-950/30 hover:text-purple-600 rounded-full text-xs font-semibold border border-border transition text-neutral-600 dark:text-neutral-300"
-                >
-                  <span className="text-sm">{preset.emoji}</span>
-                  <span>{preset.title}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Campaign Presets Gallery Section */}
-      {!draftCampaign && !isParsing && (
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
-              <Layers className="w-5 h-5 text-purple-500" />
-              Featured Campaign Presets
-            </h2>
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar scroll-smooth">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-300 ${
-                    selectedCategory === cat
-                      ? "bg-purple-600 text-white shadow-md shadow-purple-600/20"
-                      : "bg-secondary text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-800 border border-border/40"
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {CAMPAIGN_PRESETS.filter((p) => selectedCategory === "All" || p.category === selectedCategory).map((preset) => (
-              <Card
-                key={preset.id}
-                className="group relative overflow-hidden hover:shadow-2xl transition-all duration-500 flex flex-col justify-between border-border hover:border-purple-500/50 bg-card/60 backdrop-blur-sm"
-              >
-                {/* Decorative Background Gradient */}
-                <div
-                  className={`absolute -right-20 -top-20 w-48 h-48 bg-gradient-to-br ${preset.gradient} rounded-full blur-[70px] opacity-20 group-hover:opacity-40 transition-opacity duration-500 pointer-events-none`}
-                />
-                
-                <CardHeader className="pb-2 relative z-10">
-                  <div className="flex justify-between items-start">
-                    <span className="text-4xl select-none transform group-hover:scale-110 transition-transform duration-300">
-                      {preset.emoji}
-                    </span>
-                    <span className="px-2.5 py-1 rounded-md text-[9px] font-bold bg-secondary/80 backdrop-blur-sm uppercase text-neutral-500 tracking-wider shadow-sm border border-border/40">
-                      {preset.channel}
-                    </span>
-                  </div>
-                  <CardTitle className="text-base font-bold mt-4 text-foreground group-hover:text-purple-500 transition-colors">
-                    {preset.title}
-                  </CardTitle>
-                  <CardDescription className="text-xs mt-1.5 leading-relaxed font-medium">
-                    {preset.description}
-                  </CardDescription>
-                </CardHeader>
-                
-                <CardContent className="pt-4 relative z-10 mt-auto">
-                  <Button
-                    onClick={() => handleChipClick(preset.promptText)}
-                    className="w-full space-x-2 text-xs font-bold bg-secondary/50 hover:bg-purple-600 hover:text-white border-none transition-all duration-300"
-                    variant="outline"
-                  >
-                    <Zap className="w-3.5 h-3.5" />
-                    <span>Activate Preset</span>
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
         </div>
       )}
 
@@ -972,7 +961,15 @@ function AISegmentsStudioContent() {
             <Card className="shadow-lg border border-border">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">Campaign Editor</CardTitle>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    Campaign Editor
+                    {draftCampaign.campaign.source === 'AI Command Center' && (
+                      <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-500 rounded text-[10px] font-bold tracking-wider uppercase border border-indigo-500/20">
+                        <Bot className="w-3 h-3 inline mr-1" />
+                        Generated by AI Command Center
+                      </span>
+                    )}
+                  </CardTitle>
                   <span className="px-3 py-1 bg-secondary text-foreground rounded-full text-xs font-semibold border border-border flex items-center gap-1">
                     <Users className="w-3 h-3 text-neutral-400" />
                     {draftCampaign.customerCount} customers targeted
