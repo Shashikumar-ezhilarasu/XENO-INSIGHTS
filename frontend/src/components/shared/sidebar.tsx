@@ -20,6 +20,7 @@ export default function Sidebar() {
         { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
         { name: 'Customers', href: '/customers', icon: UserCircle2 },
         { name: 'Campaigns', href: '/campaigns', icon: Send },
+        { name: 'AI Command Center', href: '/campaigns/command', icon: Bot },
         { name: 'Analytics', href: '/analytics', icon: BarChart2 },
       ]
     },

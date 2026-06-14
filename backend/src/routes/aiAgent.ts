@@ -622,7 +622,8 @@ router.post('/ai/draft-campaign', aiSegmentRateLimiter, validateAiSegment, async
         channel: queryData.suggestedChannel.toUpperCase(),
         messageTemplate: queryData.copywriteSuite.messageTemplate,
         buttons: buttonsJson,
-        status: 'DRAFT'
+        status: 'DRAFT',
+        source: req.body.source || 'AI Command Center'
       }
     });
 

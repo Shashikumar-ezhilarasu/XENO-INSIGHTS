@@ -17,6 +17,15 @@ export interface AudienceData {
   explanation: string;
 }
 
+export interface SimulatorCampaignData {
+  id: string;
+  name: string;
+  audienceSize: number;
+  channel: string;
+  source: string;
+  createdAt: string;
+}
+
 interface SharedStateContextType {
   selectedAudience: AudienceData | null;
   setSelectedAudience: (data: AudienceData | null) => void;
@@ -24,6 +33,10 @@ interface SharedStateContextType {
   setCampaignTemplate: (template: string) => void;
   campaignChannel: string;
   setCampaignChannel: (channel: string) => void;
+  campaignSource: string;
+  setCampaignSource: (source: string) => void;
+  simulatorCampaign: SimulatorCampaignData | null;
+  setSimulatorCampaign: (data: SimulatorCampaignData | null) => void;
   language: 'EN' | 'ES' | 'TA' | 'HI' | 'FR';
   setLanguage: (lang: 'EN' | 'ES' | 'TA' | 'HI' | 'FR') => void;
 }
@@ -34,6 +47,8 @@ export function SharedStateProvider({ children }: { children: ReactNode }) {
   const [selectedAudience, setSelectedAudience] = useState<AudienceData | null>(null);
   const [campaignTemplate, setCampaignTemplate] = useState('Hey {{name}}, here is 10% off your next Coffee!');
   const [campaignChannel, setCampaignChannel] = useState('WHATSAPP');
+  const [campaignSource, setCampaignSource] = useState('MANUAL');
+  const [simulatorCampaign, setSimulatorCampaign] = useState<SimulatorCampaignData | null>(null);
   const [language, setLanguageState] = useState<'EN' | 'ES' | 'TA' | 'HI' | 'FR'>('EN');
 
   React.useEffect(() => {
@@ -61,6 +76,10 @@ export function SharedStateProvider({ children }: { children: ReactNode }) {
         setCampaignTemplate,
         campaignChannel,
         setCampaignChannel,
+        campaignSource,
+        setCampaignSource,
+        simulatorCampaign,
+        setSimulatorCampaign,
         language,
         setLanguage
       }}

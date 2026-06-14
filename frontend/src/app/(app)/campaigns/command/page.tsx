@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSharedState } from '../../../../hooks/useSharedState';
 import {
@@ -47,7 +48,8 @@ interface ChatMessage {
 }
 
 export default function CampaignCommand() {
-  const { language, setLanguage } = useSharedState();
+  const router = useRouter();
+  const { language, setLanguage, setSelectedAudience, setCampaignTemplate, setCampaignChannel, setCampaignSource } = useSharedState();
   const [brandCategory, setBrandCategory] = useState<BrandCategory>('retail');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -484,56 +486,14 @@ export default function CampaignCommand() {
     }
   };
 
-  const handleLaunchCampaign = async () => {
-    setIsDispatching(true);
-    setDispatchProgress(10);
-
-    try {
-      const createRes = await fetch(`${BACKEND_URL}/api/campaigns/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: activeProposal.audience?.label || 'AI Marketing Campaign',
-          channel: activeChannel.toUpperCase(),
-          messageTemplate: messageText,
-          promptText: messages[messages.length - 2]?.content || 'Conversational AI command launch',
-          audienceSize: activeProposal.audience?.size,
-          scheduledAt: isScheduled ? scheduleDate : null
-        })
-      });
-
-      if (!createRes.ok) throw new Error('Campaign creation failed');
+  const handleGenerateCampaign = () => {
+    if (activeProposal) {
+      if (setSelectedAudience) setSelectedAudience(activeProposal.audience);
+      if (setCampaignTemplate) setCampaignTemplate(messageText);
+      if (setCampaignChannel) setCampaignChannel(activeChannel.toUpperCase());
+      if (setCampaignSource) setCampaignSource('AI Command Center');
       
-      let progress = 10;
-      const interval = setInterval(() => {
-        progress += 30;
-        if (progress > 100) {
-          clearInterval(interval);
-          setIsSuccess(true);
-          
-          // Show analytics inline instead of redirecting
-          const sent = activeProposal.audience?.size || 420;
-          const delivered = Math.floor(sent * 0.96);
-          const opened = Math.floor(delivered * 0.68);
-          const clicked = Math.floor(opened * 0.42);
-          const orders = Math.floor(clicked * 0.15);
-          const revenue = orders * 45.0; // assuming $45 AOV
-          
-          setCampaignAnalytics({
-            sent,
-            delivered,
-            opened,
-            clicked,
-            orders,
-            revenue
-          });
-        }
-        setDispatchProgress(progress);
-      }, 400);
-
-    } catch (error) {
-      console.error(error);
-      setIsDispatching(false);
+      router.push('/campaigns');
     }
   };
 
@@ -1250,11 +1210,11 @@ export default function CampaignCommand() {
                       ) : (
                         <Button 
                           id="btn-launch-campaign"
-                          onClick={handleLaunchCampaign}
+                          onClick={handleGenerateCampaign}
                           className="w-full md:w-56 bg-purple-600 hover:bg-purple-700 text-white font-extrabold shadow-lg shadow-purple-500/20 py-5 rounded-xl gap-2"
                         >
                           <Send className="w-4 h-4" />
-                          Launch Campaign
+                          Generate Campaign
                         </Button>
                       )}
                     </div>
