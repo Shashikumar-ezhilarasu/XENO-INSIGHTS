@@ -85,7 +85,7 @@ export default function HomePage() {
           <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-purple-400"/> Revenue Attribution Analytics</span>
         </div>
         
-        <div className="pt-8 pb-32 flex flex-col sm:flex-row items-center gap-4">
+        <div className="pt-8 pb-16 flex flex-col sm:flex-row items-center gap-4">
           <Button 
             onClick={() => {
               localStorage.removeItem('xeno_has_seen_tour');
@@ -97,15 +97,23 @@ export default function HomePage() {
             Enter Workspace <ArrowRight className="ml-2 w-5 h-5" />
           </Button>
           <Button 
-            onClick={() => {
-              document.getElementById('explore')?.scrollIntoView({ behavior: 'smooth' });
-            }}
-            size="lg"
-            variant="outline"
-            className="rounded-full border-white/20 bg-white/5 backdrop-blur-md text-white hover:bg-white/10 transition-all duration-300 px-8 py-6 text-lg font-bold"
+            onClick={() => window.open('https://github.com/shashikumar-ezhilarasu/xeno-insights', '_blank')}
+            variant="outline" 
+            size="lg" 
+            className="rounded-full border-neutral-700 hover:bg-white/5 transition-all duration-300 px-8 py-6 text-lg font-bold bg-transparent"
           >
-            Explore Platform
+            View GitHub
           </Button>
+        </div>
+
+        {/* Architecture Diagram */}
+        <div className="w-full max-w-6xl mx-auto pb-32 animate-fadeIn relative">
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent z-10 pointer-events-none" />
+          <img 
+            src="/architecture.png" 
+            alt="XENO CRM Event-Driven Architecture" 
+            className="w-full h-auto rounded-xl border border-[#2F293A] shadow-2xl relative z-0"
+          />
         </div>
       </div>
 

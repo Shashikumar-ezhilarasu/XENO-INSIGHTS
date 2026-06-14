@@ -80,6 +80,8 @@ The AI Command Center utilizes a multi-agent "Swarm" approach:
 
 ## 4. System Architecture
 
+![XENO CRM Architecture Diagram](/architecture.png)
+
 XENO CRM is a full-stack, decoupled application designed for scale.
 
 ### Frontend
