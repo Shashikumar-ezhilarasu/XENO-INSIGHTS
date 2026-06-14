@@ -180,13 +180,13 @@ export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?
   };
 
   const containerClass = fullScreen 
-    ? "flex flex-col h-screen bg-[#0A0A0A] text-gray-100 p-6 overflow-hidden" 
+    ? "flex flex-col text-gray-100 w-full" 
     : "flex flex-col text-gray-100 overflow-hidden rounded-xl border border-border bg-card mt-8 shadow-sm";
 
   return (
     <div className={containerClass}>
       {/* Header */}
-      <div className={`flex justify-between items-start mb-6 shrink-0 ${!fullScreen && 'p-6 pb-0'}`}>
+      <div className={`flex justify-between items-start mb-6 shrink-0 ${!fullScreen ? 'p-6 pb-0' : ''}`}>
         <div>
           <h1 className={`${fullScreen ? 'text-3xl' : 'text-xl'} font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-500 flex items-center gap-3`}>
             System Monitor
@@ -254,7 +254,7 @@ export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?
       )}
 
       {/* Queue Progress Stats */}
-      <div className={`grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 shrink-0 ${!fullScreen && 'px-6'}`}>
+      <div className={`grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 shrink-0 ${!fullScreen ? 'px-6' : ''}`}>
         {[
           { label: 'Waiting', value: stats?.waiting ?? 0, color: 'text-amber-400', border: 'border-amber-500/20', bg: 'bg-amber-500/10' },
           { label: 'Active', value: stats?.active ?? 0, color: 'text-blue-400', border: 'border-blue-500/20', bg: 'bg-blue-500/10' },
@@ -273,7 +273,7 @@ export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?
         ))}
       </div>
 
-      <div className={`grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6 shrink-0 ${!fullScreen && 'px-6'}`}>
+      <div className={`grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6 shrink-0 ${!fullScreen ? 'px-6' : ''}`}>
         {/* Reliability Dashboard */}
         <Card className="border border-emerald-500/20 bg-emerald-500/5 bg-opacity-50">
           <CardHeader className="p-4 pb-2 border-b border-emerald-500/10">
@@ -336,7 +336,7 @@ export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?
       </div>
 
       {/* Event Feed */}
-      <Card className={`flex-1 border-gray-800 bg-[#121212] overflow-hidden flex flex-col ${!fullScreen && 'mx-6 mb-6 h-96 border rounded-lg'}`}>
+      <Card className={`border-gray-800 bg-[#121212] flex flex-col ${!fullScreen ? 'mx-6 mb-6 border rounded-lg' : 'mb-8'}`}>
         <CardHeader className="border-b border-gray-800 pb-3 shrink-0 bg-gray-900/50">
           <CardTitle className="text-sm font-mono flex items-center gap-2 text-gray-300">
             <Terminal className="w-4 h-4 text-emerald-400" />
@@ -346,7 +346,7 @@ export default function SystemMonitorPanel({ fullScreen = false }: { fullScreen?
             Real-time webhook callback ingestion trace (Idempotent)
           </CardDescription>
         </CardHeader>
-        <CardContent className="p-0 overflow-y-auto flex-1 font-mono text-xs">
+        <CardContent className="p-0 font-mono text-xs">
           {events.length === 0 ? (
             <div className="h-full flex items-center justify-center text-gray-600 p-8">
               {isLive ? 'Waiting for events...' : 'No events found.'}
