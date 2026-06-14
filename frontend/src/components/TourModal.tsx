@@ -4,12 +4,9 @@ import React, { useEffect, useState } from 'react';
 import Stepper, { Step } from './ui/stepper';
 import { X, Sparkles, Users, Send, Target, BarChart3, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useRouter } from 'next/navigation';
 
 export default function TourModal() {
   const [isOpen, setIsOpen] = useState(false);
-
-  const router = useRouter();
 
   useEffect(() => {
     // Wait for the user to complete the dashboard onboarding before showing the tour
@@ -19,7 +16,6 @@ export default function TourModal() {
       
       if (!hasSeenTour && hasOnboarded === 'true') {
         setIsOpen(true);
-        router.push('/dashboard');
       }
     };
 
@@ -29,39 +25,21 @@ export default function TourModal() {
     // Listen for custom event from the Help button in the navbar or onboarding completion
     const handleOpenTour = () => {
       setIsOpen(true);
-      router.push('/dashboard');
     };
     window.addEventListener('open-tour', handleOpenTour);
 
     return () => {
       window.removeEventListener('open-tour', handleOpenTour);
     };
-  }, [router]);
+  }, []);
 
   const handleClose = () => {
     setIsOpen(false);
     localStorage.setItem('xeno_has_seen_tour', 'true');
-    router.push('/dashboard'); // Route back to overview when tour completes
   };
 
   const handleStepChange = (step: number) => {
-    switch (step) {
-      case 1:
-        router.push('/dashboard');
-        break;
-      case 2:
-        router.push('/campaigns');
-        break;
-      case 3:
-        router.push('/campaigns/builder');
-        break;
-      case 4:
-        router.push('/campaigns/command');
-        break;
-      case 5:
-        router.push('/analytics');
-        break;
-    }
+    // No longer navigating on step change
   };
 
   if (!isOpen) return null;
@@ -80,13 +58,10 @@ export default function TourModal() {
 
         {/* Modal Container */}
         <motion.div
-          drag
-          dragMomentum={false}
-          dragConstraints={{ left: -500, right: 500, top: -500, bottom: 500 }}
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full min-w-[320px] max-w-3xl max-h-[85vh] bg-card rounded-2xl shadow-2xl border border-border z-10 overflow-y-auto resize cursor-grab active:cursor-grabbing"
+          className="relative w-full min-w-[320px] max-w-3xl max-h-[85vh] bg-card rounded-2xl shadow-2xl border border-border z-10 overflow-y-auto"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-secondary/30 pointer-events-none">
