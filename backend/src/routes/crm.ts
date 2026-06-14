@@ -340,6 +340,7 @@ router.get('/analytics', async (req: Request, res: Response) => {
         campaignId: campaign.id,
         campaignName: campaign.name,
         channel: campaign.channel,
+        source: campaign.source,
         promptText: campaign.promptText,
         messageTemplate: campaign.messageTemplate,
         messageTemplateB: campaign.messageTemplateB || null,

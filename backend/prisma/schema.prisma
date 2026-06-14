@@ -61,6 +61,7 @@ model Campaign {
   attributedOrders Int            @default(0)
   attributedRevenue Float         @default(0.0)
   createdAt       DateTime        @default(now())
+  source          String          @default("MANUAL")
   communications  Communication[]
   triggers        Trigger[]
 }

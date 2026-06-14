@@ -11,6 +11,7 @@ export interface CampaignAnalyticItem {
   messageTemplateB: string | null;
   imageUrl: string | null;
   buttons: string | null;
+  source?: string;
   createdAt: string;
   totalMessages: number;
   statusCounts: {
