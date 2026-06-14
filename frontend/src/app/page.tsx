@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import Lightfall from '../components/Lightfall';
+import Orb from '../components/Orb';
 import MagicBento from '../components/MagicBento';
 import { Button } from '../components/ui/button';
 import { ArrowRight, Sparkles, CheckCircle2 } from 'lucide-react';
@@ -46,28 +46,20 @@ export default function HomePage() {
 
   return (
     <main className="relative min-h-screen w-full overflow-x-hidden bg-black text-white flex flex-col items-center">
-      {/* Background Lightfall Effect */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        <Lightfall
-          colors={['#A6C8FF', '#5227FF', '#eee8ee']}
-          backgroundColor="#0A29FF"
-          speed={2.2}
-          streakCount={2}
-          streakWidth={1}
-          streakLength={0.8}
-          glow={1}
-          density={0.4}
-          twinkle={0.85}
-          zoom={3}
-          backgroundGlow={0.2}
-          opacity={1}
-          mouseInteraction={false}
-          mouseStrength={1}
-          mouseRadius={0.8}
-        />
-        {/* Overlay to ensure text readability */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/80 z-1" />
+      {/* Background Orb Effect */}
+      <div className="absolute top-0 left-0 w-full z-0 flex items-center justify-center pointer-events-none opacity-60 pt-10">
+        <div style={{ width: '100%', height: '600px', position: 'relative', pointerEvents: 'auto' }}>
+          <Orb
+            hoverIntensity={2}
+            rotateOnHover
+            hue={0}
+            forceHoverState={false}
+            backgroundColor="#000000"
+          />
+        </div>
       </div>
+      {/* Overlay to ensure text readability */}
+      <div className="fixed inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/80 z-1 pointer-events-none" />
 
       {/* Hero Content */}
       <div className="relative z-10 flex flex-col items-center text-center mt-32 px-4 space-y-6 max-w-5xl mx-auto">
