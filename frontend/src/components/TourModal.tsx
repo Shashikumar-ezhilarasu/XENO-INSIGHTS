@@ -46,13 +46,13 @@ export default function TourModal() {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-        {/* Backdrop - Lower opacity so the app behind is highly visible */}
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-background/30 backdrop-blur-[2px]"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm"
           onClick={handleClose}
         />
 
@@ -61,39 +61,43 @@ export default function TourModal() {
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full min-w-[320px] max-w-3xl max-h-[85vh] bg-card rounded-2xl shadow-2xl border border-border z-10 overflow-y-auto"
+          className="relative w-full max-w-2xl max-h-[80vh] bg-[#120F17] rounded-2xl shadow-2xl border border-[#2F293A] z-10 flex flex-col overflow-hidden"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-secondary/30 pointer-events-none">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-[#2F293A] bg-black/20 shrink-0">
             <div className="flex items-center space-x-2 pointer-events-none">
-              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-primary" />
+              <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-purple-400" />
               </div>
-              <h2 className="text-xl font-bold tracking-tight">XENO Platform Tour</h2>
+              <h2 className="text-xl font-bold tracking-tight text-white">XENO Platform Tour</h2>
             </div>
-            <div className="flex items-center space-x-2 pointer-events-auto">
+            <div className="flex items-center space-x-2">
               <button
                 onClick={handleClose}
-                className="px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground rounded-lg transition-colors border border-transparent hover:border-border"
+                className="px-3 py-1.5 text-xs font-semibold text-neutral-400 hover:bg-white/10 hover:text-white rounded-lg transition-colors border border-transparent hover:border-white/20"
               >
                 Skip Tour
               </button>
               <button
                 onClick={handleClose}
-                className="p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground rounded-full transition-colors"
+                className="p-1.5 text-neutral-400 hover:bg-white/10 hover:text-white rounded-full transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
           </div>
 
-          <div className="p-4 sm:p-8 bg-background">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden">
             <Stepper
               initialStep={1}
               onStepChange={handleStepChange}
               onFinalStepCompleted={handleClose}
               backButtonText="Previous"
               nextButtonText="Next"
+              stepCircleContainerClassName="shadow-none border-none bg-transparent !p-0 !m-0"
+              stepContainerClassName="px-8 pt-8 pb-4"
+              contentClassName="px-8 pb-4"
+              footerClassName="px-8 pb-8 pt-0"
             >
               <Step>
                 <div className="text-center space-y-4 py-8">
