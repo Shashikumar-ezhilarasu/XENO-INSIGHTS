@@ -75,7 +75,7 @@ router.post('/swarm', aiSegmentRateLimiter, async (req: Request, res: Response) 
             createdAt: {
               gte: dateThreshold
             },
-            ...(category ? { productCategory: category } : {})
+            ...(category ? { category: category } : {})
           }
         }
       },
