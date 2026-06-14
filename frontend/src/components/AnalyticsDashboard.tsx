@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
   AreaChart, Area, PieChart, Pie, Cell
 } from 'recharts';
-import { ShieldCheck, MessageSquare, AlertCircle, Users2, Sparkles, CheckCircle2, ArrowRightCircle, Image as ImageIcon, Activity, TrendingUp } from 'lucide-react';
+import { ShieldCheck, MessageSquare, AlertCircle, Users2, Sparkles, CheckCircle2, ArrowRightCircle, Image as ImageIcon, Activity, TrendingUp, Bot } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 
@@ -34,6 +34,7 @@ interface CampaignAnalyticItem {
   campaignName: string;
   createdAt: string;
   channel: string;
+  source?: string;
   totalMessages: number;
   messageTemplate: string | null;
   messageTemplateB: string | null;
@@ -584,6 +585,65 @@ export default function AnalyticsDashboard({ analytics }: AnalyticsDashboardProp
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Recent Campaigns Table */}
+      <div className="mt-6 bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-border bg-secondary/20 flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-purple-500" />
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">Recent Campaigns</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-secondary/10 text-neutral-500 text-xs uppercase tracking-wider">
+              <tr>
+                <th className="px-6 py-3 font-medium">Campaign</th>
+                <th className="px-6 py-3 font-medium">Channel</th>
+                <th className="px-6 py-3 font-medium text-right">Audience</th>
+                <th className="px-6 py-3 font-medium text-right">Delivery</th>
+                <th className="px-6 py-3 font-medium text-right">Clicks</th>
+                <th className="px-6 py-3 font-medium text-right">Revenue</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {analytics.slice(0, 5).map(camp => (
+                <tr key={camp.campaignId} className="hover:bg-secondary/5 transition">
+                  <td className="px-6 py-4">
+                    <div className="font-semibold text-foreground">{camp.campaignName}</div>
+                    {camp.source === 'AI Command Center' && (
+                      <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-indigo-500/10 text-indigo-500 rounded text-[9px] font-bold tracking-wider uppercase border border-indigo-500/20">
+                        <Bot className="w-3 h-3" />
+                        AI Orchestrated
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
+                    <Badge variant="outline" className="text-[10px]">{camp.channel}</Badge>
+                  </td>
+                  <td className="px-6 py-4 text-right font-mono text-neutral-600 dark:text-neutral-300">
+                    {camp.totalMessages.toLocaleString()}
+                  </td>
+                  <td className="px-6 py-4 text-right font-mono text-green-600 dark:text-green-400">
+                    {camp.rates.deliveryRatePercent}%
+                  </td>
+                  <td className="px-6 py-4 text-right font-mono text-purple-600 dark:text-purple-400">
+                    {camp.rates.clickRatePercent}%
+                  </td>
+                  <td className="px-6 py-4 text-right font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                    ${(camp.attributedRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                </tr>
+              ))}
+              {analytics.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-neutral-500 italic">
+                    No campaigns launched yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
