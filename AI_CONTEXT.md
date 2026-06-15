@@ -18,7 +18,8 @@ Xeno CRM is an **AI-native marketing platform** designed not as a collection of 
 - **Campaign Manager (`/campaigns`)**: The core AI Orchestrator. Users select a target audience and use Gemini AI to generate copy. It supports multiple `campaignType`s (Standard, Loyalty, Spin Wheel, Scratch Card). Gamification is natively integrated here, not isolated.
 - **Operations Simulator (`/simulator`)**: Real-time observability dashboard for tracking BullMQ workers, webhook idempotency, Dead Letter Queues, and campaign delivery logs.
 - **Analytics (`/analytics`)**: Focuses purely on post-campaign conversion metrics, ROAS, and offer redemption tracking.
-- **Workspace Settings (`/workspace/profile`)**: Replaces the old `/settings` route. Contains global configurations synced with the Tenant DB.
+- **Workspace Settings (`/workspace/profile`)**: Contains global business configurations synced with the Tenant DB.
+- **System Settings (`/settings`)**: A newly re-introduced system administration dashboard displaying beautifully simulated usage metrics for Google Gemini AI tokens, PostgreSQL storage, Redis/BullMQ queue performance, and Channel API deliveries.
 
 ### 3. Backend Capabilities Surfaced
 - **AI Audience Segmentation**: Uses Gemini to analyze customer RFM metrics and generate dynamic clusters.
@@ -28,9 +29,9 @@ Xeno CRM is an **AI-native marketing platform** designed not as a collection of 
 - **Channel MCP Routing**: Pluggable Model Context Protocol architecture for dispatching messages via WhatsApp, SMS, or RCS (`channelMcpClient.ts`).
 
 ## Recent Refactoring Notes (June 2026)
-- **Problem**: The UI felt like multiple disjointed assignments (Gamification, Nudge, Settings).
-- **Resolution**: A massive Information Architecture (IA) unification. Merged gamification into campaign generation. Moved nudge into the customer directory. Extracted system observability from analytics into its own Operations simulator. 
-- **Codebase Cleanups**: Removed deprecated unused pages (`/gamification`, `/nudge`, `/settings`, `/ai-usage`). Fixed typing and unclosed div errors inside the UI components.
+- **Problem**: The UI felt like multiple disjointed assignments (Gamification, Nudge).
+- **Resolution**: A massive Information Architecture (IA) unification. Merged gamification into campaign generation. Moved nudge into the customer directory. Extracted system observability from analytics into its own Operations simulator. Reintroduced `/settings` for technical infrastructure metrics.
+- **Codebase Cleanups**: Removed deprecated unused pages (`/gamification`, `/nudge`, `/ai-usage`). Fixed typing and unclosed div errors inside the UI components. Connected the Campaign Command Center right-side simulation visually to the underlying component states (Idle -> Audience Set -> Message Ready -> Ready to Launch -> Launched).
 
 ## How to Continue Work
 1. **Frontend**: Always verify imports using `useTenant()` context for personalization. The UI utilizes Tailwind CSS and Lucide Icons. Ensure the `Sidebar` reflects any new module routing.

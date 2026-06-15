@@ -53,10 +53,10 @@ XENO CRM fundamentally inverses this paradigm:
 - **Event Feed:** Streams raw, idempotent `CommunicationEvent` logs showing the status evolution of individual messages.
 - **Funnel Visualization:** Animates the campaign's progression from `Audience` → `Sent` → `Delivered` → `Opened` → `Clicked` → `Converted`.
 
-### Analytics
+### Analytics & Administration
 - **Live Dashboards:** Monitor Delivery, Open, Click, and Conversion rates in real-time.
 - **Revenue Attribution:** Tracks precise ROAS (Return on Ad Spend) triggered by simulated conversion webhooks.
-- **AI Orchestration Badges:** Visually distinguishes campaigns originating from the AI Command Center vs. Manual execution.
+- **System Settings Dashboard:** A dedicated `/settings` technical dashboard displaying simulated usage metrics for Google Gemini AI tokens, PostgreSQL storage, Redis/BullMQ queue performance, and Channel API deliveries.
 
 ---
 
@@ -95,10 +95,11 @@ XENO CRM is a full-stack, decoupled application designed for scale.
 - **Language:** TypeScript
 - **ORM:** Prisma
 - **Background Processing:** BullMQ
+- **Channel Services:** Fully isolated mock services (`/backend/channel-services`) communicating via Model Context Protocol (MCP) over StreamableHTTP to mimic real-world 3rd-party APIs (WhatsApp, SMS, RCS).
 
 ### Database & Caching
 - **Primary Database:** PostgreSQL (Neon / Supabase compatible)
-- **Message Broker & Cache:** Redis (Upstash / Local)
+- **Message Broker / Cache:** Redis (Upstash / Local)
 
 ### External Integrations
 - **AI Layer:** Google Gemini (`@google/genai`)
