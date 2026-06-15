@@ -3,14 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "preinstall": "npm install --prefix backend && npm install --prefix frontend && npm install --prefix channel-services/whatsapp-mcp && npm install --prefix channel-services/sms-mcp && npm install --prefix channel-services/email-rcs-mcp",
+    "preinstall": "npm install --prefix backend && npm install --prefix frontend && npm install --prefix backend/channel-services/whatsapp-mcp && npm install --prefix backend/channel-services/sms-mcp && npm install --prefix backend/channel-services/email-rcs-mcp",
     "build": "npm run --prefix backend build && npm run --prefix frontend build",
     "start": "npm run --prefix backend start",
     "dev:backend": "npm run --prefix backend dev",
     "dev:frontend": "npm run --prefix frontend dev",
-    "dev:whatsapp": "npm run --prefix channel-services/whatsapp-mcp dev",
-    "dev:sms": "npm run --prefix channel-services/sms-mcp dev",
-    "dev:email": "npm run --prefix channel-services/email-rcs-mcp dev",
+    "dev:whatsapp": "npm run --prefix backend/channel-services/whatsapp-mcp dev",
+    "dev:sms": "npm run --prefix backend/channel-services/sms-mcp dev",
+    "dev:email": "npm run --prefix backend/channel-services/email-rcs-mcp dev",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:whatsapp\" \"npm run dev:sms\" \"npm run dev:email\""
   },
   "devDependencies": {
